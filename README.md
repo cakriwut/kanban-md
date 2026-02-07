@@ -255,6 +255,25 @@ Available keys:
 | `next_id` | no | Next task ID |
 | `version` | no | Config schema version |
 
+### `context`
+
+Generate a markdown summary of the board state for embedding in context files (e.g. `CLAUDE.md`, `AGENTS.md`).
+
+```bash
+kanban-md context                             # print to stdout
+kanban-md context --write-to AGENTS.md        # write/update in file
+kanban-md context --sections blocked,overdue  # limit sections
+kanban-md context --days 14                   # recently completed lookback
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--write-to` | | Write context to file (creates or updates in-place) |
+| `--sections` | all | Comma-separated section filter |
+| `--days` | 7 | Recently completed lookback in days |
+
+When using `--write-to`, the context block is wrapped in HTML comment markers (`<!-- BEGIN kanban-md context -->` / `<!-- END kanban-md context -->`). If the file already contains these markers, only the block between them is replaced — all other content is preserved.
+
 ## Global flags
 
 These work with any command:
