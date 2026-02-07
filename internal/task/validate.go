@@ -3,9 +3,11 @@ package task
 import (
 	"errors"
 	"fmt"
+
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 )
 
-// Validation errors.
+// Validation errors (kept for backward compatibility with errors.Is).
 var (
 	ErrInvalidStatus   = errors.New("invalid status")
 	ErrInvalidPriority = errors.New("invalid priority")
@@ -18,7 +20,11 @@ func ValidateStatus(status string, allowed []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: %q (allowed: %v)", ErrInvalidStatus, status, allowed)
+	return clierr.Newf(clierr.InvalidStatus, "invalid status %q", status).
+		WithDetails(map[string]any{
+			"status":  status,
+			"allowed": allowed,
+		})
 }
 
 // ValidatePriority checks that a priority is in the allowed list.
@@ -28,5 +34,68 @@ func ValidatePriority(priority string, allowed []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: %q (allowed: %v)", ErrInvalidPriority, priority, allowed)
+	return clierr.Newf(clierr.InvalidPriority, "invalid priority %q", priority).
+		WithDetails(map[string]any{
+			"priority": priority,
+			"allowed":  allowed,
+		})
+}
+
+// ValidateDate returns a CLIError for invalid date input.
+func ValidateDate(field, input string, err error) *clierr.Error {
+	return clierr.Newf(clierr.InvalidDate, "invalid %s date: %v", field, err).
+		WithDetails(map[string]any{
+			"field": field,
+			"input": input,
+		})
+}
+
+// ValidateTaskID returns a CLIError for invalid task ID input.
+func ValidateTaskID(input string) *clierr.Error {
+	return clierr.Newf(clierr.InvalidTaskID, "invalid task ID %q", input).
+		WithDetails(map[string]any{"input": input})
+}
+
+// ValidateSelfReference returns a CLIError for self-referencing dependency.
+func ValidateSelfReference(id int) *clierr.Error {
+	return clierr.Newf(clierr.SelfReference, "task cannot depend on itself (ID %d)", id).
+		WithDetails(map[string]any{"id": id})
+}
+
+// ValidateDependencyNotFound returns a CLIError for missing dependency.
+func ValidateDependencyNotFound(depID int) *clierr.Error {
+	return clierr.Newf(clierr.DependencyNotFound, "dependency task #%d not found", depID).
+		WithDetails(map[string]any{"id": depID})
+}
+
+// ValidateWIPLimit returns a CLIError for WIP limit violations.
+func ValidateWIPLimit(status string, limit, current int) *clierr.Error {
+	return clierr.Newf(clierr.WIPLimitExceeded,
+		"WIP limit reached for %q (%d/%d)", status, current, limit).
+		WithDetails(map[string]any{
+			"status":  status,
+			"limit":   limit,
+			"current": current,
+		})
+}
+
+// ValidateBoundaryError returns a CLIError for boundary moves.
+func ValidateBoundaryError(id int, status, direction string) *clierr.Error {
+	return clierr.Newf(clierr.BoundaryError,
+		"task #%d is already at the %s status (%s)", id, direction, status).
+		WithDetails(map[string]any{
+			"id":        id,
+			"status":    status,
+			"direction": direction,
+		})
+}
+
+// FormatDueDate returns a CLIError for invalid due date input.
+func FormatDueDate(input string, err error) *clierr.Error {
+	return ValidateDate("due", input, err)
+}
+
+// FormatParentError wraps a dependency error as a parent error.
+func FormatParentError(err error) error {
+	return fmt.Errorf("invalid parent: %w", err)
 }

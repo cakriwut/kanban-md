@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -25,7 +24,7 @@ func init() {
 func runShow(_ *cobra.Command, args []string) error {
 	id, err := strconv.Atoi(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid task ID %q: %w", args[0], err)
+		return task.ValidateTaskID(args[0])
 	}
 
 	cfg, err := loadConfig()

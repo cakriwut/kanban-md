@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 )
 
 func TestNewDefault(t *testing.T) {
@@ -135,8 +137,9 @@ func TestFindDir(t *testing.T) {
 
 func TestFindDirNotFound(t *testing.T) {
 	_, err := FindDir(t.TempDir())
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("FindDir() error = %v, want ErrNotFound", err)
+	var cliErr *clierr.Error
+	if !errors.As(err, &cliErr) || cliErr.Code != clierr.BoardNotFound {
+		t.Errorf("FindDir() error = %v, want *clierr.Error with code BOARD_NOT_FOUND", err)
 	}
 }
 

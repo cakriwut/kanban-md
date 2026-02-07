@@ -16,6 +16,9 @@ import (
 // binPath holds the path to the compiled kanban-md binary.
 var binPath string
 
+// Error code constants used in multiple tests.
+const codeWIPLimitExceeded = "WIP_LIMIT_EXCEEDED"
+
 func TestMain(m *testing.M) {
 	tmp, err := os.MkdirTemp("", "kanban-md-e2e-*")
 	if err != nil {
@@ -113,6 +116,33 @@ func runKanbanJSON(t *testing.T, dir string, dest interface{}, args ...string) r
 	}
 
 	return r
+}
+
+// errorJSON captures the structured error JSON output.
+type errorJSON struct {
+	Error   string         `json:"error"`
+	Code    string         `json:"code"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
+// runKanbanJSONError runs with --json and expects a non-zero exit code.
+// It parses the structured error from stdout.
+func runKanbanJSONError(t *testing.T, dir string, args ...string) errorJSON {
+	t.Helper()
+
+	jsonArgs := append([]string{"--json"}, args...)
+	r := runKanban(t, dir, jsonArgs...)
+
+	if r.exitCode == 0 {
+		t.Fatalf("expected non-zero exit code, got 0\nstdout: %s", r.stdout)
+	}
+
+	var errResp errorJSON
+	if err := json.Unmarshal([]byte(r.stdout), &errResp); err != nil {
+		t.Fatalf("parsing error JSON: %v\nstdout: %s", err, r.stdout)
+	}
+
+	return errResp
 }
 
 // initBoard initializes a board in a fresh temp directory, returns kanban dir path.
@@ -290,25 +320,25 @@ func TestCreateIncrementID(t *testing.T) {
 
 func TestCreateInvalidStatus(t *testing.T) {
 	kanbanDir := initBoard(t)
-	r := runKanban(t, kanbanDir, "--json", "create", "Bad task", "--status", "nonexistent")
 
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for invalid status")
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Bad task", "--status", "nonexistent")
+	if errResp.Code != "INVALID_STATUS" {
+		t.Errorf("code = %q, want INVALID_STATUS", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "invalid status") {
-		t.Errorf("stderr = %q, want 'invalid status'", r.stderr)
+	if !strings.Contains(errResp.Error, "invalid status") {
+		t.Errorf("error = %q, want 'invalid status'", errResp.Error)
 	}
 }
 
 func TestCreateBadDateFormat(t *testing.T) {
 	kanbanDir := initBoard(t)
-	r := runKanban(t, kanbanDir, "--json", "create", "Bad date", "--due", "02-15-2026")
 
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for bad date format")
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Bad date", "--due", "02-15-2026")
+	if errResp.Code != "INVALID_DATE" {
+		t.Errorf("code = %q, want INVALID_DATE", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "invalid due date") {
-		t.Errorf("stderr = %q, want 'invalid due date'", r.stderr)
+	if !strings.Contains(errResp.Error, "invalid") {
+		t.Errorf("error = %q, want 'invalid'", errResp.Error)
 	}
 }
 
@@ -456,24 +486,18 @@ func TestShow(t *testing.T) {
 func TestShowNotFound(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	r := runKanban(t, kanbanDir, "--json", "show", "999")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for missing task")
-	}
-	if !strings.Contains(r.stderr, "not found") {
-		t.Errorf("stderr = %q, want 'not found'", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "show", "999")
+	if errResp.Code != "TASK_NOT_FOUND" {
+		t.Errorf("code = %q, want TASK_NOT_FOUND", errResp.Code)
 	}
 }
 
 func TestShowInvalidID(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	r := runKanban(t, kanbanDir, "--json", "show", "abc")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for non-numeric ID")
-	}
-	if !strings.Contains(r.stderr, "invalid task ID") {
-		t.Errorf("stderr = %q, want 'invalid task ID'", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "show", "abc")
+	if errResp.Code != "INVALID_TASK_ID" {
+		t.Errorf("code = %q, want INVALID_TASK_ID", errResp.Code)
 	}
 }
 
@@ -591,12 +615,12 @@ func TestEditNoChanges(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Stable task")
 
-	r := runKanban(t, kanbanDir, "--json", "edit", "1")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for no changes")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1")
+	if errResp.Code != "NO_CHANGES" {
+		t.Errorf("code = %q, want NO_CHANGES", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "no changes") {
-		t.Errorf("stderr = %q, want 'no changes'", r.stderr)
+	if !strings.Contains(errResp.Error, "no changes") {
+		t.Errorf("error = %q, want 'no changes'", errResp.Error)
 	}
 }
 
@@ -658,22 +682,22 @@ func TestMoveBoundaryErrors(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Boundary task") // starts at "backlog" (first)
 
 	// --prev at first status.
-	r := runKanban(t, kanbanDir, "--json", "move", "1", "--prev")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for --prev at first status")
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "--prev")
+	if errResp.Code != "BOUNDARY_ERROR" {
+		t.Errorf("code = %q, want BOUNDARY_ERROR", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "first status") {
-		t.Errorf("stderr = %q, want 'first status'", r.stderr)
+	if !strings.Contains(errResp.Error, "first") {
+		t.Errorf("error = %q, want 'first'", errResp.Error)
 	}
 
 	// Move to last status, then try --next.
 	runKanban(t, kanbanDir, "--json", "move", "1", "done")
-	r = runKanban(t, kanbanDir, "--json", "move", "1", "--next")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for --next at last status")
+	errResp = runKanbanJSONError(t, kanbanDir, "move", "1", "--next")
+	if errResp.Code != "BOUNDARY_ERROR" {
+		t.Errorf("code = %q, want BOUNDARY_ERROR", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "last status") {
-		t.Errorf("stderr = %q, want 'last status'", r.stderr)
+	if !strings.Contains(errResp.Error, "last") {
+		t.Errorf("error = %q, want 'last'", errResp.Error)
 	}
 }
 
@@ -681,12 +705,12 @@ func TestMoveNoStatusSpecified(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "No direction")
 
-	r := runKanban(t, kanbanDir, "--json", "move", "1")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit when no status given")
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1")
+	if errResp.Code != "INVALID_INPUT" {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "provide a target status") {
-		t.Errorf("stderr = %q, want 'provide a target status'", r.stderr)
+	if !strings.Contains(errResp.Error, "provide a target status") {
+		t.Errorf("error = %q, want 'provide a target status'", errResp.Error)
 	}
 }
 
@@ -780,12 +804,9 @@ func TestMoveRespectsWIPLimit(t *testing.T) {
 
 	// Create another task and try to move it to in-progress.
 	mustCreateTask(t, kanbanDir, "Task B")
-	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit when WIP limit reached")
-	}
-	if !strings.Contains(r.stderr, "WIP limit") {
-		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "2", "in-progress")
+	if errResp.Code != codeWIPLimitExceeded {
+		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
 }
 
@@ -813,12 +834,9 @@ func TestCreateRespectsWIPLimit(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task B", "--status", "in-progress")
 
 	// Third task to in-progress should fail.
-	r := runKanban(t, kanbanDir, "--json", "create", "Task C", "--status", "in-progress")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit when WIP limit reached on create")
-	}
-	if !strings.Contains(r.stderr, "WIP limit") {
-		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Task C", "--status", "in-progress")
+	if errResp.Code != codeWIPLimitExceeded {
+		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
 }
 
@@ -829,12 +847,9 @@ func TestEditStatusRespectsWIPLimit(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task B")
 
 	// Edit task B status to in-progress should fail.
-	r := runKanban(t, kanbanDir, "--json", "edit", "2", "--status", "in-progress")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit when WIP limit reached on edit --status")
-	}
-	if !strings.Contains(r.stderr, "WIP limit") {
-		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress")
+	if errResp.Code != codeWIPLimitExceeded {
+		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
 }
 
@@ -1017,12 +1032,12 @@ func TestEditStartedAndClearStartedConflict(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Task A")
 
-	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--started", "2026-01-15", "--clear-started")
-	if r.exitCode == 0 {
-		t.Error("expected error for --started + --clear-started conflict")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--started", "2026-01-15", "--clear-started")
+	if errResp.Code != "STATUS_CONFLICT" {
+		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "cannot use") {
-		t.Errorf("stderr = %q, want conflict error", r.stderr)
+	if !strings.Contains(errResp.Error, "cannot use") {
+		t.Errorf("error = %q, want conflict error", errResp.Error)
 	}
 }
 
@@ -1084,24 +1099,18 @@ func TestCreateSelfDepErrors(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Existing task")
 
 	// Next ID is 2. --depends-on 2 is self-reference.
-	r := runKanban(t, kanbanDir, "--json", "create", "Self dep", "--depends-on", "2")
-	if r.exitCode == 0 {
-		t.Error("expected error for self-dependency")
-	}
-	if !strings.Contains(r.stderr, "depend on itself") {
-		t.Errorf("stderr = %q, want self-dep error", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Self dep", "--depends-on", "2")
+	if errResp.Code != "SELF_REFERENCE" {
+		t.Errorf("code = %q, want SELF_REFERENCE", errResp.Code)
 	}
 }
 
 func TestCreateInvalidDepErrors(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	r := runKanban(t, kanbanDir, "--json", "create", "Bad dep", "--depends-on", "99")
-	if r.exitCode == 0 {
-		t.Error("expected error for invalid dependency ID")
-	}
-	if !strings.Contains(r.stderr, "not found") {
-		t.Errorf("stderr = %q, want 'not found'", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Bad dep", "--depends-on", "99")
+	if errResp.Code != "DEPENDENCY_NOT_FOUND" {
+		t.Errorf("code = %q, want DEPENDENCY_NOT_FOUND", errResp.Code)
 	}
 }
 
@@ -1172,12 +1181,9 @@ func TestEditSelfDepErrors(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Task")
 
-	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--add-dep", "1")
-	if r.exitCode == 0 {
-		t.Error("expected error for self-dependency on edit")
-	}
-	if !strings.Contains(r.stderr, "depend on itself") {
-		t.Errorf("stderr = %q, want self-dep error", r.stderr)
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--add-dep", "1")
+	if errResp.Code != "SELF_REFERENCE" {
+		t.Errorf("code = %q, want SELF_REFERENCE", errResp.Code)
 	}
 }
 
@@ -1277,12 +1283,12 @@ func TestDeleteWithoutForceNonTTY(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Protected task")
 
-	r := runKanban(t, kanbanDir, "--json", "delete", "1")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for delete without --force in non-TTY")
+	errResp := runKanbanJSONError(t, kanbanDir, "delete", "1")
+	if errResp.Code != "CONFIRMATION_REQUIRED" {
+		t.Errorf("code = %q, want CONFIRMATION_REQUIRED", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "not a terminal") {
-		t.Errorf("stderr = %q, want 'not a terminal'", r.stderr)
+	if !strings.Contains(errResp.Error, "not a terminal") {
+		t.Errorf("error = %q, want 'not a terminal'", errResp.Error)
 	}
 }
 
@@ -1618,12 +1624,12 @@ func TestBlockRequiresReason(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "No reason")
 
-	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--block", "")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for empty block reason")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--block", "")
+	if errResp.Code != "INVALID_INPUT" {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "block reason is required") {
-		t.Errorf("stderr = %q, want 'block reason is required'", r.stderr)
+	if !strings.Contains(errResp.Error, "block reason is required") {
+		t.Errorf("error = %q, want 'block reason is required'", errResp.Error)
 	}
 }
 
@@ -1631,12 +1637,12 @@ func TestBlockAndUnblockConflict(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Conflict")
 
-	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--block", "reason", "--unblock")
-	if r.exitCode == 0 {
-		t.Error("expected non-zero exit for --block + --unblock")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--block", "reason", "--unblock")
+	if errResp.Code != "STATUS_CONFLICT" {
+		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
 	}
-	if !strings.Contains(r.stderr, "cannot use --block and --unblock together") {
-		t.Errorf("stderr = %q, want conflict message", r.stderr)
+	if !strings.Contains(errResp.Error, "cannot use --block and --unblock together") {
+		t.Errorf("error = %q, want conflict message", errResp.Error)
 	}
 }
 

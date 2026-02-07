@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 )
 
 func createTestTask(t *testing.T, dir string, id int, title, status string) {
@@ -53,8 +55,9 @@ func TestFindByID(t *testing.T) {
 func TestFindByIDNotFound(t *testing.T) {
 	dir := t.TempDir()
 	_, err := FindByID(dir, 99)
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("FindByID(99) error = %v, want ErrNotFound", err)
+	var cliErr *clierr.Error
+	if !errors.As(err, &cliErr) || cliErr.Code != clierr.TaskNotFound {
+		t.Errorf("FindByID(99) error = %v, want *clierr.Error with code TASK_NOT_FOUND", err)
 	}
 }
 

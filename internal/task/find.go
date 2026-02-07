@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 )
 
 // ErrNotFound indicates a task was not found.
@@ -32,7 +34,8 @@ func FindByID(tasksDir string, id int) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("%w: #%d", ErrNotFound, id)
+	return "", clierr.Newf(clierr.TaskNotFound, "task not found: #%d", id).
+		WithDetails(map[string]any{"id": id})
 }
 
 // ReadAll reads all task files from the given directory.

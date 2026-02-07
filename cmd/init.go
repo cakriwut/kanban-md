@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/output"
 )
@@ -40,7 +41,8 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	// Check if already initialized.
 	if _, err := os.Stat(filepath.Join(absDir, config.ConfigFileName)); err == nil {
-		return fmt.Errorf("board already initialized in %s", absDir)
+		return clierr.Newf(clierr.BoardAlreadyExists, "board already initialized in %s", absDir).
+			WithDetails(map[string]any{"dir": absDir})
 	}
 
 	name, _ := cmd.Flags().GetString("name")

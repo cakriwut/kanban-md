@@ -125,7 +125,7 @@ func applyCreateFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) erro
 	if v, _ := cmd.Flags().GetString("due"); v != "" {
 		d, err := date.Parse(v)
 		if err != nil {
-			return fmt.Errorf("invalid due date: %w", err)
+			return task.FormatDueDate(v, err)
 		}
 		t.Due = &d
 	}

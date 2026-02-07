@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
@@ -31,7 +33,9 @@ var rootCmd = &cobra.Command{
 	Long: `kanban-md is a CLI tool for managing Kanban boards using plain Markdown files.
 Tasks are stored as individual files with YAML frontmatter, making them
 easy to read, edit, and version-control. Designed for AI agents and humans alike.`,
-	Version: version,
+	Version:       version,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		if flagNoColor || os.Getenv("NO_COLOR") != "" {
 			output.DisableColor()
@@ -48,10 +52,41 @@ func init() {
 
 // Execute runs the root command.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	_, err := rootCmd.ExecuteC()
+	if err == nil {
+		return
 	}
+
+	// Handle SilentError — exit with code, no output.
+	var silent *clierr.SilentError
+	if errors.As(err, &silent) {
+		os.Exit(silent.Code)
+	}
+
+	// Determine if JSON mode is active.
+	jsonMode := flagJSON
+	if !jsonMode {
+		jsonMode = os.Getenv("KANBAN_OUTPUT") == "json"
+	}
+
+	if jsonMode {
+		var cliErr *clierr.Error
+		if errors.As(err, &cliErr) {
+			output.JSONError(cliErr.Code, cliErr.Message, cliErr.Details)
+			os.Exit(cliErr.ExitCode())
+		}
+		// Unknown error — wrap as INTERNAL_ERROR.
+		output.JSONError(clierr.InternalError, err.Error(), nil)
+		os.Exit(2) //nolint:mnd // exit code 2 for internal errors
+	}
+
+	// Non-JSON mode: print to stderr.
+	fmt.Fprintln(os.Stderr, err)
+	var cliErr *clierr.Error
+	if errors.As(err, &cliErr) {
+		os.Exit(cliErr.ExitCode())
+	}
+	os.Exit(1)
 }
 
 // loadConfig finds and loads the kanban config.
@@ -82,10 +117,10 @@ func outputFormat() output.Format {
 func validateDepIDs(tasksDir string, selfID int, ids []int) error {
 	for _, depID := range ids {
 		if depID == selfID {
-			return fmt.Errorf("task cannot depend on itself (ID %d)", depID)
+			return task.ValidateSelfReference(depID)
 		}
 		if _, err := task.FindByID(tasksDir, depID); err != nil {
-			return fmt.Errorf("dependency task #%d not found", depID)
+			return task.ValidateDependencyNotFound(depID)
 		}
 	}
 	return nil
@@ -108,7 +143,7 @@ func checkWIPLimit(cfg *config.Config, statusCounts map[string]int, targetStatus
 	}
 
 	if count >= limit {
-		return fmt.Errorf("WIP limit reached for %q (%d/%d)", targetStatus, count, limit)
+		return task.ValidateWIPLimit(targetStatus, limit, count)
 	}
 	return nil
 }

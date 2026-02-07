@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/date"
 	"github.com/antopolskiy/kanban-md/internal/output"
@@ -51,7 +51,7 @@ func init() {
 func runEdit(cmd *cobra.Command, args []string) error {
 	id, err := strconv.Atoi(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid task ID %q: %w", args[0], err)
+		return task.ValidateTaskID(args[0])
 	}
 
 	cfg, err := loadConfig()
@@ -77,7 +77,7 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if !changed {
-		return errors.New("no changes specified")
+		return clierr.New(clierr.NoChanges, "no changes specified")
 	}
 
 	// Validate dependency references.
@@ -214,17 +214,17 @@ func applyTimestampFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 	clearCompleted, _ := cmd.Flags().GetBool("clear-completed")
 
 	if startedSet && clearStarted {
-		return false, errors.New("cannot use --started and --clear-started together")
+		return false, clierr.New(clierr.StatusConflict, "cannot use --started and --clear-started together")
 	}
 	if completedSet && clearCompleted {
-		return false, errors.New("cannot use --completed and --clear-completed together")
+		return false, clierr.New(clierr.StatusConflict, "cannot use --completed and --clear-completed together")
 	}
 
 	if startedSet {
 		v, _ := cmd.Flags().GetString("started")
 		d, err := date.Parse(v)
 		if err != nil {
-			return false, fmt.Errorf("invalid started date: %w", err)
+			return false, task.ValidateDate("started", v, err)
 		}
 		ts := d.Time
 		t.Started = &ts
@@ -238,7 +238,7 @@ func applyTimestampFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 		v, _ := cmd.Flags().GetString("completed")
 		d, err := date.Parse(v)
 		if err != nil {
-			return false, fmt.Errorf("invalid completed date: %w", err)
+			return false, task.ValidateDate("completed", v, err)
 		}
 		ts := d.Time
 		t.Completed = &ts
@@ -266,7 +266,7 @@ func applyTagDueFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 	if v, _ := cmd.Flags().GetString("due"); v != "" {
 		d, err := date.Parse(v)
 		if err != nil {
-			return false, fmt.Errorf("invalid due date: %w", err)
+			return false, task.FormatDueDate(v, err)
 		}
 		t.Due = &d
 		changed = true
@@ -286,7 +286,7 @@ func applyDepFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 	clearParent, _ := cmd.Flags().GetBool("clear-parent")
 
 	if parentSet && clearParent {
-		return false, errors.New("cannot use --parent and --clear-parent together")
+		return false, clierr.New(clierr.StatusConflict, "cannot use --parent and --clear-parent together")
 	}
 	if parentSet {
 		v, _ := cmd.Flags().GetInt("parent")
@@ -344,11 +344,11 @@ func applyBlockFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 	blockSet := cmd.Flags().Changed("block")
 
 	if blockSet && unblock {
-		return false, errors.New("cannot use --block and --unblock together")
+		return false, clierr.New(clierr.StatusConflict, "cannot use --block and --unblock together")
 	}
 	if blockSet {
 		if blockReason == "" {
-			return false, errors.New("block reason is required (use --block REASON)")
+			return false, clierr.New(clierr.InvalidInput, "block reason is required (use --block REASON)")
 		}
 		t.Blocked = true
 		t.BlockReason = blockReason

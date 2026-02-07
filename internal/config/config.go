@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 )
 
 const fileMode = 0o600
@@ -205,7 +207,8 @@ func FindDir(startDir string) (string, error) {
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", ErrNotFound
+			return "", clierr.New(clierr.BoardNotFound,
+				"no kanban board found (run 'kanban-md init' to create one)")
 		}
 		dir = parent
 	}

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
@@ -33,7 +33,7 @@ func init() {
 func runDelete(cmd *cobra.Command, args []string) error {
 	id, err := strconv.Atoi(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid task ID %q: %w", args[0], err)
+		return task.ValidateTaskID(args[0])
 	}
 
 	cfg, err := loadConfig()
@@ -59,7 +59,8 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	// Require confirmation in TTY mode unless --force.
 	if !force {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			return errors.New("cannot prompt for confirmation (not a terminal); use --force")
+			return clierr.New(clierr.ConfirmationReq,
+				"cannot prompt for confirmation (not a terminal); use --force")
 		}
 		fmt.Fprintf(os.Stderr, "Delete task #%d %q? [y/N] ", t.ID, t.Title)
 		reader := bufio.NewReader(os.Stdin)

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
@@ -34,7 +34,7 @@ func init() {
 func runMove(cmd *cobra.Command, args []string) error {
 	id, err := strconv.Atoi(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid task ID %q: %w", args[0], err)
+		return task.ValidateTaskID(args[0])
 	}
 
 	cfg, err := loadConfig()
@@ -107,17 +107,17 @@ func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *c
 	case next:
 		idx := cfg.StatusIndex(t.Status)
 		if idx < 0 || idx >= len(cfg.Statuses)-1 {
-			return "", fmt.Errorf("task #%d is already at the last status (%s)", t.ID, t.Status)
+			return "", task.ValidateBoundaryError(t.ID, t.Status, "last")
 		}
 		return cfg.Statuses[idx+1], nil
 	case prev:
 		idx := cfg.StatusIndex(t.Status)
 		if idx <= 0 {
-			return "", fmt.Errorf("task #%d is already at the first status (%s)", t.ID, t.Status)
+			return "", task.ValidateBoundaryError(t.ID, t.Status, "first")
 		}
 		return cfg.Statuses[idx-1], nil
 	default:
-		return "", errors.New("provide a target status or use --next/--prev")
+		return "", clierr.New(clierr.InvalidInput, "provide a target status or use --next/--prev")
 	}
 }
 
