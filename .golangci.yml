@@ -64,4 +64,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/santop/kanban-md
+        - github.com/antopolskiy/kanban-md

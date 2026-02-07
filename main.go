@@ -1,6 +1,6 @@
 package main
 
-import "github.com/santop/kanban-md/cmd"
+import "github.com/antopolskiy/kanban-md/cmd"
 
 func main() {
 	cmd.Execute()

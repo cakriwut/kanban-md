@@ -20,10 +20,10 @@ archives:
           - zip
 dockers:
   - image_templates:
-    - "ghcr.io/santop/kanban-md:latest"
-    - "ghcr.io/santop/kanban-md:{{ .Major }}"
-    - "ghcr.io/santop/kanban-md:{{ .Major }}.{{ .Minor }}"
-    - "ghcr.io/santop/kanban-md:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+    - "ghcr.io/antopolskiy/kanban-md:latest"
+    - "ghcr.io/antopolskiy/kanban-md:{{ .Major }}"
+    - "ghcr.io/antopolskiy/kanban-md:{{ .Major }}.{{ .Minor }}"
+    - "ghcr.io/antopolskiy/kanban-md:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     build_flag_templates:
     - "--pull"
     - "--label=org.opencontainers.image.created={{.Date}}"

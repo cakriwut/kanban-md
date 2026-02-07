@@ -1,4 +1,4 @@
-module github.com/santop/kanban-md
+module github.com/antopolskiy/kanban-md
 
 go 1.25.7
 
