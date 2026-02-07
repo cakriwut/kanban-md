@@ -30,5 +30,5 @@ const (
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 1
+	CurrentVersion = 2
 )

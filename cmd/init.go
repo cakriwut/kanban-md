@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().String("name", "", "board name (defaults to current directory name)")
 	initCmd.Flags().StringSlice("statuses", nil, "comma-separated list of statuses")
+	initCmd.Flags().StringSlice("wip-limit", nil, "WIP limit per status (format: status:N, repeatable)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -58,6 +60,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		cfg.Defaults.Status = statuses[0]
 	}
 
+	if wipLimits, _ := cmd.Flags().GetStringSlice("wip-limit"); len(wipLimits) > 0 {
+		parsed, err := parseWIPLimits(wipLimits)
+		if err != nil {
+			return err
+		}
+		cfg.WIPLimits = parsed
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -92,4 +102,21 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	output.Messagef("  Tasks:   %s", tasksDir)
 	output.Messagef("  Columns: %s", strings.Join(cfg.Statuses, ", "))
 	return nil
+}
+
+// parseWIPLimits parses "status:N" pairs into a map.
+func parseWIPLimits(pairs []string) (map[string]int, error) {
+	limits := make(map[string]int, len(pairs))
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, ":", 2) //nolint:mnd // key:value pair
+		if len(parts) != 2 {                  //nolint:mnd // key:value pair
+			return nil, fmt.Errorf("invalid WIP limit %q (expected status:N)", pair)
+		}
+		n, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid WIP limit value %q in %q", parts[1], pair)
+		}
+		limits[parts[0]] = n
+	}
+	return limits, nil
 }

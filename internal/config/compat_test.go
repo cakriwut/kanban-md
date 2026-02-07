@@ -95,6 +95,58 @@ func TestCompatV1Config(t *testing.T) {
 	}
 }
 
+func TestCompatV1ConfigMigratesToV2(t *testing.T) {
+	// v1 config should migrate to v2 and have nil WIP limits (unlimited).
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v1")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v1 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+	if cfg.WIPLimits != nil {
+		t.Errorf("WIPLimits = %v, want nil (v1 has no WIP limits)", cfg.WIPLimits)
+	}
+	// WIPLimit helper should return 0 for any status.
+	if limit := cfg.WIPLimit("in-progress"); limit != 0 {
+		t.Errorf("WIPLimit(in-progress) = %d, want 0", limit)
+	}
+}
+
+func TestCompatV2Config(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v2")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v2 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v2" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v2")
+	}
+
+	// Verify WIP limits.
+	if cfg.WIPLimit("in-progress") != 3 {
+		t.Errorf("WIPLimit(in-progress) = %d, want 3", cfg.WIPLimit("in-progress"))
+	}
+	if cfg.WIPLimit("review") != 2 {
+		t.Errorf("WIPLimit(review) = %d, want 2", cfg.WIPLimit("review"))
+	}
+	if cfg.WIPLimit("backlog") != 0 {
+		t.Errorf("WIPLimit(backlog) = %d, want 0 (unlimited)", cfg.WIPLimit("backlog"))
+	}
+}
+
 func TestCompatV1TasksReadable(t *testing.T) {
 	// This test verifies that the current task reader can parse v1 task files.
 	// We only check that files exist and are well-formed here; detailed task

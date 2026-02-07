@@ -36,10 +36,12 @@ func migrate(cfg *Config) error {
 
 // migrations maps each version to the function that migrates it to the next version.
 // The migration function must increment cfg.Version after a successful migration.
-//
-// Example: when adding v1→v2 migration:
-//
-//	var migrations = map[int]func(*Config) error{
-//	    1: migrateV1ToV2,
-//	}
-var migrations = map[int]func(*Config) error{}
+var migrations = map[int]func(*Config) error{
+	1: migrateV1ToV2,
+}
+
+// migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
+func migrateV1ToV2(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	cfg.Version = 2
+	return nil
+}

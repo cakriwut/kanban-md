@@ -74,3 +74,25 @@ func loadConfig() (*config.Config, error) {
 func outputFormat() output.Format {
 	return output.Detect(flagJSON, flagTable)
 }
+
+// checkWIPLimit verifies that adding a task to targetStatus would not exceed
+// the WIP limit. currentTaskStatus is the task's current status (empty for new tasks).
+// Returns nil if within limits, or an error describing the violation.
+func checkWIPLimit(cfg *config.Config, statusCounts map[string]int, targetStatus, currentTaskStatus string) error {
+	limit := cfg.WIPLimit(targetStatus)
+	if limit == 0 {
+		return nil
+	}
+
+	count := statusCounts[targetStatus]
+
+	// If the task is already in the target status, it doesn't add to the count.
+	if currentTaskStatus == targetStatus {
+		return nil
+	}
+
+	if count >= limit {
+		return fmt.Errorf("WIP limit reached for %q (%d/%d)", targetStatus, count, limit)
+	}
+	return nil
+}

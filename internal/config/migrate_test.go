@@ -50,3 +50,19 @@ func TestMigrateNegativeVersionErrors(t *testing.T) {
 		t.Fatal("migrate() negative version: expected error, got nil")
 	}
 }
+
+func TestMigrateV1ToV2(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 1
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v1→v2: %v", err)
+	}
+	if cfg.Version != 2 {
+		t.Errorf("Version = %d, want 2", cfg.Version)
+	}
+	// WIPLimits should be nil (not set by migration).
+	if cfg.WIPLimits != nil {
+		t.Errorf("WIPLimits = %v, want nil", cfg.WIPLimits)
+	}
+}

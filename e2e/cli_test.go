@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -741,6 +742,124 @@ func TestMoveChangedTrue(t *testing.T) {
 	if got.Status != "todo" {
 		t.Errorf("Status = %q, want %q", got.Status, "todo")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// WIP limit tests
+// ---------------------------------------------------------------------------
+
+// initBoardWithWIP creates a board with WIP limits on in-progress.
+func initBoardWithWIP(t *testing.T, limit int) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+
+	args := []string{
+		"--dir", kanbanDir, "init",
+		"--wip-limit", "in-progress:" + strconv.Itoa(limit),
+	}
+	cmd := exec.Command(binPath, args...) //nolint:gosec,noctx // e2e test binary
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("init board with WIP: %v\nstderr: %s", err, stderr.String())
+	}
+
+	return kanbanDir
+}
+
+func TestMoveRespectsWIPLimit(t *testing.T) {
+	kanbanDir := initBoardWithWIP(t, 1) // limit 1 for in-progress
+
+	// Create a task and move it to in-progress (fills the slot).
+	mustCreateTask(t, kanbanDir, "Task A")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+
+	// Create another task and try to move it to in-progress.
+	mustCreateTask(t, kanbanDir, "Task B")
+	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress")
+	if r.exitCode == 0 {
+		t.Error("expected non-zero exit when WIP limit reached")
+	}
+	if !strings.Contains(r.stderr, "WIP limit") {
+		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	}
+}
+
+func TestMoveForceOverridesWIP(t *testing.T) {
+	kanbanDir := initBoardWithWIP(t, 1)
+
+	mustCreateTask(t, kanbanDir, "Task A")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+
+	mustCreateTask(t, kanbanDir, "Task B")
+	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--force")
+	if r.exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0 with --force\nstderr: %s", r.exitCode, r.stderr)
+	}
+	if !strings.Contains(r.stderr, "Warning") {
+		t.Errorf("stderr = %q, want WIP warning", r.stderr)
+	}
+}
+
+func TestCreateRespectsWIPLimit(t *testing.T) {
+	kanbanDir := initBoardWithWIP(t, 2)
+
+	// Fill in-progress to the limit.
+	mustCreateTask(t, kanbanDir, "Task A", "--status", "in-progress")
+	mustCreateTask(t, kanbanDir, "Task B", "--status", "in-progress")
+
+	// Third task to in-progress should fail.
+	r := runKanban(t, kanbanDir, "--json", "create", "Task C", "--status", "in-progress")
+	if r.exitCode == 0 {
+		t.Error("expected non-zero exit when WIP limit reached on create")
+	}
+	if !strings.Contains(r.stderr, "WIP limit") {
+		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	}
+}
+
+func TestEditStatusRespectsWIPLimit(t *testing.T) {
+	kanbanDir := initBoardWithWIP(t, 1)
+
+	mustCreateTask(t, kanbanDir, "Task A", "--status", "in-progress")
+	mustCreateTask(t, kanbanDir, "Task B")
+
+	// Edit task B status to in-progress should fail.
+	r := runKanban(t, kanbanDir, "--json", "edit", "2", "--status", "in-progress")
+	if r.exitCode == 0 {
+		t.Error("expected non-zero exit when WIP limit reached on edit --status")
+	}
+	if !strings.Contains(r.stderr, "WIP limit") {
+		t.Errorf("stderr = %q, want WIP limit message", r.stderr)
+	}
+}
+
+func TestWIPUnlimitedByDefault(t *testing.T) {
+	kanbanDir := initBoard(t) // no WIP limits
+
+	// Create many tasks in in-progress — should all succeed.
+	for i := 1; i <= 5; i++ {
+		mustCreateTask(t, kanbanDir, "Task "+strconv.Itoa(i), "--status", "in-progress")
+	}
+}
+
+func TestInitWithWIPLimits(t *testing.T) {
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+
+	r := runKanban(t, kanbanDir, "--json", "init",
+		"--wip-limit", "in-progress:3",
+		"--wip-limit", "review:2")
+	if r.exitCode != 0 {
+		t.Fatalf("init with WIP limits failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+
+	// Create a task to verify the board works.
+	mustCreateTask(t, kanbanDir, "Test task")
 }
 
 // ---------------------------------------------------------------------------

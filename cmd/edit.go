@@ -62,12 +62,20 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	}
 
 	oldTitle := t.Title
+	oldStatus := t.Status
 	changed, err := applyEditFlags(cmd, t, cfg)
 	if err != nil {
 		return err
 	}
 	if !changed {
 		return errors.New("no changes specified")
+	}
+
+	// Check WIP limit if status changed.
+	if t.Status != oldStatus {
+		if err := enforceWIPLimit(cfg, oldStatus, t.Status, false); err != nil {
+			return err
+		}
 	}
 
 	t.Updated = time.Now()

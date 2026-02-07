@@ -56,6 +56,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Check WIP limit for the target status (new task, so currentStatus is empty).
+	if err := enforceWIPLimit(cfg, "", t.Status, false); err != nil {
+		return err
+	}
+
 	// Generate filename and write.
 	slug := task.GenerateSlug(title)
 	filename := task.GenerateFilename(t.ID, slug)

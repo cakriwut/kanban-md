@@ -39,6 +39,10 @@ func TestValidate(t *testing.T) {
 		{"bad default status", func(c *Config) { c.Defaults.Status = "nonexistent" }, true},
 		{"bad default priority", func(c *Config) { c.Defaults.Priority = "nonexistent" }, true},
 		{"zero next_id", func(c *Config) { c.NextID = 0 }, true},
+		{"valid wip_limits", func(c *Config) { c.WIPLimits = map[string]int{"in-progress": 3} }, false},
+		{"wip unknown status", func(c *Config) { c.WIPLimits = map[string]int{"bogus": 3} }, true},
+		{"wip negative limit", func(c *Config) { c.WIPLimits = map[string]int{"in-progress": -1} }, true},
+		{"wip zero limit", func(c *Config) { c.WIPLimits = map[string]int{"in-progress": 0} }, false},
 	}
 
 	for _, tt := range tests {

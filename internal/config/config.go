@@ -25,6 +25,7 @@ type Config struct {
 	Statuses   []string       `yaml:"statuses"`
 	Priorities []string       `yaml:"priorities"`
 	Defaults   DefaultsConfig `yaml:"defaults"`
+	WIPLimits  map[string]int `yaml:"wip_limits,omitempty"`
 	NextID     int            `yaml:"next_id"`
 
 	// dir is the absolute path to the kanban directory (not serialized).
@@ -108,10 +109,33 @@ func (c *Config) Validate() error {
 	if !contains(c.Priorities, c.Defaults.Priority) {
 		return fmt.Errorf("%w: default priority %q not in priorities list", ErrInvalid, c.Defaults.Priority)
 	}
+	if err := c.validateWIPLimits(); err != nil {
+		return err
+	}
 	if c.NextID < 1 {
 		return fmt.Errorf("%w: next_id must be >= 1", ErrInvalid)
 	}
 	return nil
+}
+
+func (c *Config) validateWIPLimits() error {
+	for status, limit := range c.WIPLimits {
+		if !contains(c.Statuses, status) {
+			return fmt.Errorf("%w: wip_limits references unknown status %q", ErrInvalid, status)
+		}
+		if limit < 0 {
+			return fmt.Errorf("%w: wip_limits for %q must be >= 0", ErrInvalid, status)
+		}
+	}
+	return nil
+}
+
+// WIPLimit returns the WIP limit for a status, or 0 (unlimited).
+func (c *Config) WIPLimit(status string) int {
+	if c.WIPLimits == nil {
+		return 0
+	}
+	return c.WIPLimits[status]
 }
 
 // Save writes the config to its config file.

@@ -34,3 +34,12 @@ func List(cfg *config.Config, opts ListOptions) ([]*task.Task, error) {
 
 	return tasks, nil
 }
+
+// CountByStatus returns the number of tasks in each status.
+func CountByStatus(tasks []*task.Task) map[string]int {
+	counts := make(map[string]int)
+	for _, t := range tasks {
+		counts[t.Status]++
+	}
+	return counts
+}

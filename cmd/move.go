@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
@@ -26,6 +27,7 @@ or use --next/--prev to move along the configured status order.`,
 func init() {
 	moveCmd.Flags().Bool("next", false, "move to next status")
 	moveCmd.Flags().Bool("prev", false, "move to previous status")
+	moveCmd.Flags().BoolP("force", "f", false, "override WIP limit")
 	rootCmd.AddCommand(moveCmd)
 }
 
@@ -58,6 +60,12 @@ func runMove(cmd *cobra.Command, args []string) error {
 	// Idempotent: if already at target status, succeed without writing.
 	if t.Status == newStatus {
 		return outputMoveResult(t, false)
+	}
+
+	// Check WIP limit.
+	force, _ := cmd.Flags().GetBool("force")
+	if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
+		return err
 	}
 
 	// Warn when moving a blocked task.
@@ -107,6 +115,30 @@ func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *c
 	default:
 		return "", errors.New("provide a target status or use --next/--prev")
 	}
+}
+
+// enforceWIPLimit checks if the target status has room. If force is true,
+// it warns instead of erroring.
+func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, force bool) error {
+	limit := cfg.WIPLimit(targetStatus)
+	if limit == 0 {
+		return nil
+	}
+
+	allTasks, err := task.ReadAll(cfg.TasksPath())
+	if err != nil {
+		return fmt.Errorf("reading tasks for WIP check: %w", err)
+	}
+
+	counts := board.CountByStatus(allTasks)
+	if err := checkWIPLimit(cfg, counts, targetStatus, currentStatus); err != nil {
+		if force {
+			fmt.Fprintf(os.Stderr, "Warning: %s (overridden with --force)\n", err)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // moveResult wraps a task with a changed flag for JSON output.

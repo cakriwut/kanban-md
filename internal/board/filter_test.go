@@ -111,3 +111,21 @@ func TestFilterBlockedNil(t *testing.T) {
 		t.Errorf("got %d tasks, want 4 (no blocked filter)", len(result))
 	}
 }
+
+func TestCountByStatus(t *testing.T) {
+	tasks := makeTasks() // 2 backlog, 1 in-progress, 1 done
+	counts := CountByStatus(tasks)
+
+	if counts["backlog"] != 2 {
+		t.Errorf("backlog count = %d, want 2", counts["backlog"])
+	}
+	if counts["in-progress"] != 1 {
+		t.Errorf("in-progress count = %d, want 1", counts["in-progress"])
+	}
+	if counts["done"] != 1 {
+		t.Errorf("done count = %d, want 1", counts["done"])
+	}
+	if counts["todo"] != 0 {
+		t.Errorf("todo count = %d, want 0", counts["todo"])
+	}
+}
