@@ -51,6 +51,10 @@ test: ## go test
 	go test $(RACE_OPT) -covermode=atomic -coverprofile=coverage.out -coverpkg=./... ./...
 	go tool cover -html=coverage.out -o coverage.html
 
+.PHONY: test-e2e
+test-e2e: ## e2e tests
+	go test $(RACE_OPT) -v ./e2e/
+
 .PHONY: diff
 diff: ## git diff
 	git diff --exit-code
