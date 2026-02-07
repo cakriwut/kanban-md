@@ -18,7 +18,7 @@ archives:
       - goos: windows
         formats:
           - zip
-homebrew_casks:
+brews:
   - repository:
       owner: antopolskiy
       name: homebrew-tap
