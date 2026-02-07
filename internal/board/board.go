@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/task"
@@ -64,6 +65,74 @@ func FindDependents(tasksDir string, id int) []string {
 		}
 	}
 	return msgs
+}
+
+// StatusSummary holds metrics for a single status column.
+type StatusSummary struct {
+	Status   string `json:"status"`
+	Count    int    `json:"count"`
+	WIPLimit int    `json:"wip_limit,omitempty"`
+	Blocked  int    `json:"blocked"`
+	Overdue  int    `json:"overdue"`
+}
+
+// PriorityCount holds a count for a priority level.
+type PriorityCount struct {
+	Priority string `json:"priority"`
+	Count    int    `json:"count"`
+}
+
+// Overview is the aggregate board overview.
+type Overview struct {
+	BoardName  string          `json:"board_name"`
+	TotalTasks int             `json:"total_tasks"`
+	Statuses   []StatusSummary `json:"statuses"`
+	Priorities []PriorityCount `json:"priorities"`
+}
+
+// Summary computes a board summary from all tasks.
+func Summary(cfg *config.Config, tasks []*task.Task) Overview {
+	now := time.Now()
+
+	statusMap := make(map[string]*StatusSummary, len(cfg.Statuses))
+	for _, s := range cfg.Statuses {
+		statusMap[s] = &StatusSummary{
+			Status:   s,
+			WIPLimit: cfg.WIPLimit(s),
+		}
+	}
+
+	prioMap := make(map[string]int, len(cfg.Priorities))
+
+	for _, t := range tasks {
+		if ss, ok := statusMap[t.Status]; ok {
+			ss.Count++
+			if t.Blocked {
+				ss.Blocked++
+			}
+			if t.Due != nil && t.Due.Before(now) && !cfg.IsTerminalStatus(t.Status) {
+				ss.Overdue++
+			}
+		}
+		prioMap[t.Priority]++
+	}
+
+	statuses := make([]StatusSummary, 0, len(cfg.Statuses))
+	for _, s := range cfg.Statuses {
+		statuses = append(statuses, *statusMap[s])
+	}
+
+	priorities := make([]PriorityCount, 0, len(cfg.Priorities))
+	for _, p := range cfg.Priorities {
+		priorities = append(priorities, PriorityCount{Priority: p, Count: prioMap[p]})
+	}
+
+	return Overview{
+		BoardName:  cfg.Board.Name,
+		TotalTasks: len(tasks),
+		Statuses:   statuses,
+		Priorities: priorities,
+	}
 }
 
 // CountByStatus returns the number of tasks in each status.

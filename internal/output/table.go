@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
@@ -107,6 +108,32 @@ func TaskDetail(t *task.Task) {
 	if t.Body != "" {
 		fmt.Fprintln(os.Stdout)
 		fmt.Fprintln(os.Stdout, t.Body)
+	}
+}
+
+// OverviewTable renders a board summary as a formatted dashboard.
+func OverviewTable(s board.Overview) {
+	fmt.Fprintln(os.Stdout, lipgloss.NewStyle().Bold(true).Render(s.BoardName))
+	fmt.Fprintf(os.Stdout, "Total: %d tasks\n\n", s.TotalTasks)
+
+	header := fmt.Sprintf("%-16s %6s %8s %8s %8s", "STATUS", "COUNT", "WIP", "BLOCKED", "OVERDUE")
+	fmt.Fprintln(os.Stdout, headerStyle.Render(header))
+
+	for _, ss := range s.Statuses {
+		wip := dimStyle.Render("--")
+		if ss.WIPLimit > 0 {
+			wip = strconv.Itoa(ss.Count) + "/" + strconv.Itoa(ss.WIPLimit)
+		}
+		fmt.Fprintf(os.Stdout, "%-16s %6d %8s %8d %8d\n",
+			ss.Status, ss.Count, wip, ss.Blocked, ss.Overdue)
+	}
+
+	fmt.Fprintln(os.Stdout)
+	prioHeader := fmt.Sprintf("%-16s %6s", "PRIORITY", "COUNT")
+	fmt.Fprintln(os.Stdout, headerStyle.Render(prioHeader))
+
+	for _, pc := range s.Priorities {
+		fmt.Fprintf(os.Stdout, "%-16s %6d\n", pc.Priority, pc.Count)
 	}
 }
 
