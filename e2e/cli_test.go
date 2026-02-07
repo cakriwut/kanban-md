@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,11 @@ func TestMain(m *testing.M) {
 		panic("creating temp dir: " + err.Error())
 	}
 
-	binPath = filepath.Join(tmp, "kanban-md")
+	binName := "kanban-md"
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+	binPath = filepath.Join(tmp, binName)
 
 	//nolint:gosec,noctx // building test binary in TestMain (no context available)
 	build := exec.Command("go", "build", "-o", binPath, "..")

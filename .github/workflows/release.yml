@@ -10,7 +10,36 @@ permissions:
   contents: read
 
 jobs:
+  ci:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          args: --fix
+
+      - name: Build and test
+        run: make mod build test
+
+      - name: Check for uncommitted changes
+        run: make diff
+
   goreleaser:
+    needs: ci
     permissions:
       contents: write
       packages: write
