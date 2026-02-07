@@ -230,6 +230,31 @@ kanban-md delete ID [--force]
 
 Prompts for confirmation in interactive terminals. Use `--force` to skip the prompt (required in non-interactive contexts like scripts).
 
+### `config`
+
+View or modify board configuration.
+
+```bash
+kanban-md config                       # show all config values
+kanban-md config get KEY               # get a single value
+kanban-md config set KEY VALUE         # set a writable value
+```
+
+Available keys:
+
+| Key | Writable | Description |
+|-----|----------|-------------|
+| `board.name` | yes | Board name |
+| `board.description` | yes | Board description |
+| `defaults.status` | yes | Default status for new tasks |
+| `defaults.priority` | yes | Default priority for new tasks |
+| `statuses` | no | List of statuses |
+| `priorities` | no | List of priorities |
+| `tasks_dir` | no | Tasks directory name |
+| `wip_limits` | no | WIP limits per status |
+| `next_id` | no | Next task ID |
+| `version` | no | Config schema version |
+
 ## Global flags
 
 These work with any command:

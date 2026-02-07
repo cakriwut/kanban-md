@@ -224,19 +224,20 @@ func (c *Config) IsTerminalStatus(s string) bool {
 
 // StatusIndex returns the index of a status in the configured order, or -1.
 func (c *Config) StatusIndex(status string) int {
-	return indexOf(c.Statuses, status)
+	return IndexOf(c.Statuses, status)
 }
 
 // PriorityIndex returns the index of a priority in the configured order, or -1.
 func (c *Config) PriorityIndex(priority string) int {
-	return indexOf(c.Priorities, priority)
+	return IndexOf(c.Priorities, priority)
 }
 
 func contains(slice []string, item string) bool {
-	return indexOf(slice, item) >= 0
+	return IndexOf(slice, item) >= 0
 }
 
-func indexOf(slice []string, item string) int {
+// IndexOf returns the index of item in slice, or -1 if not found.
+func IndexOf(slice []string, item string) int {
 	for i, s := range slice {
 		if s == item {
 			return i

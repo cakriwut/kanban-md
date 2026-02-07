@@ -16,8 +16,13 @@ import (
 // binPath holds the path to the compiled kanban-md binary.
 var binPath string
 
-// Error code constants used in multiple tests.
-const codeWIPLimitExceeded = "WIP_LIMIT_EXCEEDED"
+// Constants used in multiple tests.
+const (
+	codeWIPLimitExceeded = "WIP_LIMIT_EXCEEDED"
+	codeInvalidInput     = "INVALID_INPUT"
+	statusBacklog        = "backlog"
+	priorityHigh         = "high"
+)
 
 func TestMain(m *testing.M) {
 	tmp, err := os.MkdirTemp("", "kanban-md-e2e-*")
@@ -261,8 +266,8 @@ func TestCreateBasic(t *testing.T) {
 	if task.Title != "My first task" {
 		t.Errorf("Title = %q, want %q", task.Title, "My first task")
 	}
-	if task.Status != "backlog" {
-		t.Errorf("Status = %q, want %q (default)", task.Status, "backlog")
+	if task.Status != statusBacklog {
+		t.Errorf("Status = %q, want %q (default)", task.Status, statusBacklog)
 	}
 	if task.Priority != "medium" {
 		t.Errorf("Priority = %q, want %q (default)", task.Priority, "medium")
@@ -286,8 +291,8 @@ func TestCreateWithAllFlags(t *testing.T) {
 	if task.Status != "todo" { //nolint:goconst // test data
 		t.Errorf("Status = %q, want %q", task.Status, "todo")
 	}
-	if task.Priority != "high" {
-		t.Errorf("Priority = %q, want %q", task.Priority, "high")
+	if task.Priority != priorityHigh {
+		t.Errorf("Priority = %q, want %q", task.Priority, priorityHigh)
 	}
 	if task.Assignee != "alice" { //nolint:goconst // test data
 		t.Errorf("Assignee = %q, want %q", task.Assignee, "alice")
@@ -529,8 +534,8 @@ func TestEditFields(t *testing.T) {
 			args: []string{"--priority", "high"},
 			check: func(t *testing.T, task taskJSON) {
 				t.Helper()
-				if task.Priority != "high" {
-					t.Errorf("Priority = %q, want %q", task.Priority, "high")
+				if task.Priority != priorityHigh {
+					t.Errorf("Priority = %q, want %q", task.Priority, priorityHigh)
 				}
 			},
 		},
@@ -706,7 +711,7 @@ func TestMoveNoStatusSpecified(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "No direction")
 
 	errResp := runKanbanJSONError(t, kanbanDir, "move", "1")
-	if errResp.Code != "INVALID_INPUT" {
+	if errResp.Code != codeInvalidInput {
 		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
 	}
 	if !strings.Contains(errResp.Error, "provide a target status") {
@@ -730,8 +735,8 @@ func TestMoveIdempotentJSON(t *testing.T) {
 	if got.Changed {
 		t.Error("Changed = true, want false for same-status move")
 	}
-	if got.Status != "backlog" {
-		t.Errorf("Status = %q, want %q", got.Status, "backlog")
+	if got.Status != statusBacklog {
+		t.Errorf("Status = %q, want %q", got.Status, statusBacklog)
 	}
 }
 
@@ -1625,7 +1630,7 @@ func TestBlockRequiresReason(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "No reason")
 
 	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--block", "")
-	if errResp.Code != "INVALID_INPUT" {
+	if errResp.Code != codeInvalidInput {
 		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
 	}
 	if !strings.Contains(errResp.Error, "block reason is required") {
@@ -2088,5 +2093,133 @@ func TestLongTitleSlugTruncation(t *testing.T) {
 	slug := strings.TrimSuffix(strings.TrimPrefix(basename, "001-"), ".md")
 	if len(slug) > 50 {
 		t.Errorf("slug length = %d, want <= 50: %q", len(slug), slug)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Config command tests
+// ---------------------------------------------------------------------------
+
+func TestConfigShowAll(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var cfg map[string]any
+	runKanbanJSON(t, kanbanDir, &cfg, "config")
+
+	// Verify expected keys are present.
+	expectedKeys := []string{
+		"version", "board.name", "board.description", "tasks_dir",
+		"statuses", "priorities", "defaults.status", "defaults.priority",
+		"wip_limits", "next_id",
+	}
+	for _, key := range expectedKeys {
+		if _, ok := cfg[key]; !ok {
+			t.Errorf("missing key %q in config output", key)
+		}
+	}
+
+	// board.name is derived from CWD during init; just verify it's non-empty.
+	if cfg["board.name"] == "" {
+		t.Error("board.name is empty")
+	}
+}
+
+func TestConfigGetBoardName(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var name string
+	runKanbanJSON(t, kanbanDir, &name, "config", "get", "board.name")
+	if name == "" {
+		t.Error("board.name is empty")
+	}
+}
+
+func TestConfigGetStatuses(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var statuses []string
+	runKanbanJSON(t, kanbanDir, &statuses, "config", "get", "statuses")
+	if len(statuses) != 5 {
+		t.Fatalf("statuses = %v, want 5 items", statuses)
+	}
+	if statuses[0] != statusBacklog {
+		t.Errorf("statuses[0] = %q, want %q", statuses[0], statusBacklog)
+	}
+}
+
+func TestConfigSetDefaultPriority(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	// Set default priority to high.
+	runKanban(t, kanbanDir, "--json", "config", "set", "defaults.priority", "high")
+
+	// Verify it persisted.
+	var val string
+	runKanbanJSON(t, kanbanDir, &val, "config", "get", "defaults.priority")
+	if val != priorityHigh {
+		t.Errorf("defaults.priority = %q, want %q", val, priorityHigh)
+	}
+}
+
+func TestConfigSetBoardName(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	runKanban(t, kanbanDir, "--json", "config", "set", "board.name", "My New Board")
+
+	var val string
+	runKanbanJSON(t, kanbanDir, &val, "config", "get", "board.name")
+	if val != "My New Board" {
+		t.Errorf("board.name = %q, want %q", val, "My New Board")
+	}
+}
+
+func TestConfigSetReadOnlyKey(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	errResp := runKanbanJSONError(t, kanbanDir, "config", "set", "next_id", "99")
+	if errResp.Code != codeInvalidInput {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
+	}
+	if !strings.Contains(errResp.Error, "read-only") {
+		t.Errorf("error = %q, want 'read-only'", errResp.Error)
+	}
+}
+
+func TestConfigGetInvalidKey(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	errResp := runKanbanJSONError(t, kanbanDir, "config", "get", "nonexistent.key")
+	if errResp.Code != codeInvalidInput {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
+	}
+	if !strings.Contains(errResp.Error, "unknown config key") {
+		t.Errorf("error = %q, want 'unknown config key'", errResp.Error)
+	}
+}
+
+func TestConfigSetInvalidDefaultStatus(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	errResp := runKanbanJSONError(t, kanbanDir, "config", "set", "defaults.status", "nonexistent")
+	if errResp.Code != codeInvalidInput {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
+	}
+	if !strings.Contains(errResp.Error, "invalid default status") {
+		t.Errorf("error = %q, want 'invalid default status'", errResp.Error)
+	}
+}
+
+func TestConfigTableOutput(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	r := runKanban(t, kanbanDir, "--table", "config")
+	if r.exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0", r.exitCode)
+	}
+	if !strings.Contains(r.stdout, "board.name") {
+		t.Errorf("table output missing board.name:\n%s", r.stdout)
+	}
+	if !strings.Contains(r.stdout, "defaults.status") {
+		t.Errorf("table output missing defaults.status:\n%s", r.stdout)
 	}
 }
