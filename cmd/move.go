@@ -167,7 +167,7 @@ func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, for
 		return nil
 	}
 
-	allTasks, err := task.ReadAll(cfg.TasksPath())
+	allTasks, _, err := task.ReadAllLenient(cfg.TasksPath())
 	if err != nil {
 		return fmt.Errorf("reading tasks for WIP check: %w", err)
 	}

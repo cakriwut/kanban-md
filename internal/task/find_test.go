@@ -103,6 +103,63 @@ func TestReadAllNonexistentDir(t *testing.T) {
 	}
 }
 
+func TestReadAllLenient(t *testing.T) {
+	dir := t.TempDir()
+	createTestTask(t, dir, 1, "Good task one", "backlog")
+	createTestTask(t, dir, 2, "Good task two", "todo")
+	createTestTask(t, dir, 3, "Good task three", "done")
+
+	// Write a malformed task file.
+	malformed := filepath.Join(dir, "004-broken.md")
+	if err := os.WriteFile(malformed, []byte("not valid frontmatter at all"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tasks, warnings, err := ReadAllLenient(dir)
+	if err != nil {
+		t.Fatalf("ReadAllLenient() error: %v", err)
+	}
+	if len(tasks) != 3 {
+		t.Errorf("ReadAllLenient() returned %d tasks, want 3", len(tasks))
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("ReadAllLenient() returned %d warnings, want 1", len(warnings))
+	}
+	if warnings[0].File != "004-broken.md" {
+		t.Errorf("warning file = %q, want %q", warnings[0].File, "004-broken.md")
+	}
+}
+
+func TestReadAllLenientAllValid(t *testing.T) {
+	dir := t.TempDir()
+	createTestTask(t, dir, 1, "Task", "backlog")
+
+	tasks, warnings, err := ReadAllLenient(dir)
+	if err != nil {
+		t.Fatalf("ReadAllLenient() error: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Errorf("tasks = %d, want 1", len(tasks))
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %d, want 0", len(warnings))
+	}
+}
+
+func TestReadAllLenientEmptyDir(t *testing.T) {
+	dir := t.TempDir()
+	tasks, warnings, err := ReadAllLenient(dir)
+	if err != nil {
+		t.Fatalf("ReadAllLenient() error: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Errorf("tasks = %d, want 0", len(tasks))
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %d, want 0", len(warnings))
+	}
+}
+
 func BenchmarkFindByID(b *testing.B) {
 	dir := b.TempDir()
 	// Create several tasks so the directory scan has realistic work.

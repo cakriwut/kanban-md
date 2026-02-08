@@ -18,10 +18,11 @@ type ListOptions struct {
 }
 
 // List loads all tasks, applies filters and sorting.
-func List(cfg *config.Config, opts ListOptions) ([]*task.Task, error) {
-	tasks, err := task.ReadAll(cfg.TasksPath())
+// Uses lenient parsing: malformed task files are skipped and returned as warnings.
+func List(cfg *config.Config, opts ListOptions) ([]*task.Task, []task.ReadWarning, error) {
+	tasks, warnings, err := task.ReadAllLenient(cfg.TasksPath())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tasks = Filter(tasks, opts.Filter)
@@ -41,13 +42,13 @@ func List(cfg *config.Config, opts ListOptions) ([]*task.Task, error) {
 		tasks = tasks[:opts.Limit]
 	}
 
-	return tasks, nil
+	return tasks, warnings, nil
 }
 
 // FindDependents returns human-readable messages for tasks that reference the
 // given ID as a parent or dependency. Used to warn before deleting a task.
 func FindDependents(tasksDir string, id int) []string {
-	allTasks, err := task.ReadAll(tasksDir)
+	allTasks, _, err := task.ReadAllLenient(tasksDir)
 	if err != nil {
 		return nil
 	}

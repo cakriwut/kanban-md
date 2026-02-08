@@ -115,6 +115,13 @@ func outputFormat() output.Format {
 	return output.Detect(flagJSON, flagTable)
 }
 
+// printWarnings writes task read warnings to stderr.
+func printWarnings(warnings []task.ReadWarning) {
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "Warning: skipping malformed file %s: %v\n", w.File, w.Err)
+	}
+}
+
 // validateDepIDs checks that all dependency IDs exist and none are self-referencing.
 func validateDepIDs(tasksDir string, selfID int, ids []int) error {
 	for _, depID := range ids {

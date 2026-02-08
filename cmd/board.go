@@ -28,10 +28,11 @@ func runBoard(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	tasks, err := task.ReadAll(cfg.TasksPath())
+	tasks, warnings, err := task.ReadAllLenient(cfg.TasksPath())
 	if err != nil {
 		return err
 	}
+	printWarnings(warnings)
 	if tasks == nil {
 		tasks = []*task.Task{}
 	}

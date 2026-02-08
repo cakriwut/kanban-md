@@ -78,10 +78,11 @@ func runList(cmd *cobra.Command, _ []string) error {
 		Unblocked: unblocked,
 	}
 
-	tasks, err := board.List(cfg, opts)
+	tasks, warnings, err := board.List(cfg, opts)
 	if err != nil {
 		return err
 	}
+	printWarnings(warnings)
 
 	format := outputFormat()
 	if format == output.FormatJSON {
