@@ -79,3 +79,39 @@ func TestSortByDue(t *testing.T) {
 		t.Errorf("sort by due = %v, want [3, 1, 2]", got)
 	}
 }
+
+func TestSortByCreated(t *testing.T) {
+	now := time.Now()
+	tasks := []*task.Task{
+		{ID: 1, Created: now.Add(2 * time.Hour)},
+		{ID: 2, Created: now},
+		{ID: 3, Created: now.Add(time.Hour)},
+	}
+	Sort(tasks, "created", false, testConfig())
+	if got := taskIDs(tasks); got != [3]int{2, 3, 1} {
+		t.Errorf("sort by created = %v, want [2, 3, 1]", got)
+	}
+}
+
+func TestSortByUpdated(t *testing.T) {
+	now := time.Now()
+	tasks := []*task.Task{
+		{ID: 1, Updated: now.Add(time.Hour)},
+		{ID: 2, Updated: now.Add(2 * time.Hour)},
+		{ID: 3, Updated: now},
+	}
+	Sort(tasks, "updated", false, testConfig())
+	if got := taskIDs(tasks); got != [3]int{3, 1, 2} {
+		t.Errorf("sort by updated = %v, want [3, 1, 2]", got)
+	}
+}
+
+func TestSortByUnknownFieldFallsBackToID(t *testing.T) {
+	tasks := []*task.Task{
+		{ID: 3}, {ID: 1}, {ID: 2},
+	}
+	Sort(tasks, "nonexistent", false, testConfig())
+	if got := taskIDs(tasks); got != [3]int{1, 2, 3} {
+		t.Errorf("sort by unknown field = %v, want [1, 2, 3] (fallback to ID)", got)
+	}
+}
