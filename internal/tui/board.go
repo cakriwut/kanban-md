@@ -478,15 +478,9 @@ func (b *Board) columnWidth() int {
 	if b.width == 0 || len(b.columns) == 0 {
 		return 30 //nolint:mnd // default column width
 	}
-	// Account for gaps between columns.
-	const gap = 1
-	available := b.width - (len(b.columns)-1)*gap
-	w := available / len(b.columns)
-	const minColWidth = 20
+	// Total rendered width = w * numColumns (JoinHorizontal adds no gaps).
+	w := b.width / len(b.columns)
 	const maxColWidth = 50
-	if w < minColWidth {
-		w = minColWidth
-	}
 	if w > maxColWidth {
 		w = maxColWidth
 	}
@@ -500,6 +494,9 @@ func (b *Board) renderColumn(colIdx int, col column, width int) string {
 	if wip > 0 {
 		headerText = fmt.Sprintf("%s (%d/%d)", col.status, len(col.tasks), wip)
 	}
+	// Truncate to fit within padding (1 left + 1 right).
+	const headerPad = 2
+	headerText = truncate(headerText, width-headerPad)
 
 	var header string
 	if colIdx == b.activeCol {
@@ -525,9 +522,10 @@ func (b *Board) renderColumn(colIdx int, col column, width int) string {
 
 func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	// Card content.
-	cardWidth := width - 4 //nolint:mnd // border + padding
-	if cardWidth < 10 {    //nolint:mnd // minimum card content width
-		cardWidth = 10
+	const cardChrome = 4 // border (2) + padding (2)
+	cardWidth := width - cardChrome
+	if cardWidth < 1 {
+		cardWidth = 1
 	}
 
 	idStr := dimStyle.Render("#" + strconv.Itoa(t.ID))
@@ -575,9 +573,10 @@ func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
 	status := fmt.Sprintf(" %s | %d tasks | hjkl:navigate enter:detail m:move M:next d:delete ?:help q:quit",
 		b.cfg.Board.Name, total)
+	status = truncate(status, b.width)
 
 	if b.err != nil {
-		errStr := errorStyle.Render("Error: " + b.err.Error())
+		errStr := errorStyle.Render(truncate("Error: "+b.err.Error(), b.width))
 		return errStr + "\n" + statusBarStyle.Render(status)
 	}
 

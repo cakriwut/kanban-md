@@ -1,0 +1,11 @@
+ backlog...  todo (0)    in-prog...  review (0)  done (1)   
+╭──────────╮  (empty)   ╭──────────╮  (empty)   ╭──────────╮
+│ #1 Ta... │            │ #3 Ta... │            │ #4 Ta... │
+│ high     │            │ high     │            │ low      │
+╰──────────╯            ╰──────────╯            ╰──────────╯
+╭──────────╮                                                
+│ #2 Ta... │                                                
+│ medium   │                                                
+╰──────────╯                                                
+                                                            
+ Test Board | 4 tasks | hjkl:navigate enter:detail m:move...

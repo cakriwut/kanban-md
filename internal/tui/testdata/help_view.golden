@@ -1,0 +1,20 @@
+╭───────────────────────────────────────────╮
+│                                           │
+│  Keyboard Shortcuts                       │
+│                                           │
+│  h/←           Move to left column        │
+│  l/→           Move to right column       │
+│  j/↓           Move cursor down           │
+│  k/↑           Move cursor up             │
+│  enter         Show task detail           │
+│  m             Move task (status picker)  │
+│  M             Move task to next status   │
+│  d             Delete task                │
+│  r             Refresh board              │
+│  ?             Show this help             │
+│  q             Quit                       │
+│  ctrl+c        Force quit                 │
+│                                           │
+│  Press any key to close                   │
+│                                           │
+╰───────────────────────────────────────────╯
