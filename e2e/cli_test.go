@@ -2833,7 +2833,7 @@ func TestREADMEDocumentsAllCommands(t *testing.T) {
 	// Every user-facing command must have a ### `command` section.
 	commands := []string{
 		"init", "create", "list", "show", "edit", "move", "delete",
-		"board", "metrics", "log", "config", "context",
+		"board", "pick", "metrics", "log", "config", "context",
 	}
 	for _, cmd := range commands {
 		heading := "### `" + cmd + "`"
@@ -2849,9 +2849,12 @@ func TestREADMEDocumentsAllCommands(t *testing.T) {
 		"edit": {
 			"--started", "--clear-started", "--completed", "--clear-completed",
 			"--parent", "--clear-parent", "--add-dep", "--remove-dep",
-			"--block", "--unblock", "--force",
+			"--block", "--unblock", "--claim", "--release", "--class", "--force",
 		},
-		"list":    {"--blocked", "--not-blocked", "--parent", "--unblocked"},
+		"move":    {"--claim"},
+		"list":    {"--blocked", "--not-blocked", "--parent", "--unblocked", "--unclaimed", "--claimed-by", "--class", "--group-by"},
+		"board":   {"--group-by"},
+		"pick":    {"--claim", "--status", "--move", "--tag"},
 		"metrics": {"--since"},
 		"log":     {"--since", "--limit", "--action", "--task"},
 	}
@@ -2865,8 +2868,8 @@ func TestREADMEDocumentsAllCommands(t *testing.T) {
 	}
 
 	// Config example must show current schema version.
-	if !strings.Contains(readme, "version: 2") {
-		t.Error("README config example still shows old version (should be version: 2)")
+	if !strings.Contains(readme, "version: 3") {
+		t.Error("README config example still shows old version (should be version: 3)")
 	}
 
 	// Config example must mention wip_limits.

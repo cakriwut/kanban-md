@@ -112,7 +112,7 @@ Optional body with more detail, context, or notes.
 The `config.yml` tracks board settings:
 
 ```yaml
-version: 2
+version: 3
 board:
   name: My Project
 tasks_dir: tasks
@@ -130,9 +130,18 @@ priorities:
 wip_limits:
   in-progress: 3
   review: 2
+classes:
+  - name: expedite
+    wip_limit: 1
+    bypass_column_wip: true
+  - name: fixed-date
+  - name: standard
+  - name: intangible
+claim_timeout: 1h
 defaults:
   status: backlog
   priority: medium
+  class: standard
 next_id: 4
 ```
 
@@ -168,6 +177,7 @@ kanban-md create TITLE [FLAGS]
 | `--tags` | | Comma-separated tags |
 | `--due` | | Due date (YYYY-MM-DD) |
 | `--estimate` | | Time estimate (e.g. 4h, 2d) |
+| `--class` | standard | Class of service (expedite, fixed-date, standard, intangible) |
 | `--parent` | | Parent task ID |
 | `--depends-on` | | Dependency task IDs (comma-separated) |
 | `--body` | | Task description |
@@ -190,6 +200,10 @@ kanban-md list [FLAGS]
 | `--not-blocked` | false | Show only non-blocked tasks |
 | `--parent` | | Filter by parent task ID |
 | `--unblocked` | false | Show only tasks with all dependencies satisfied |
+| `--unclaimed` | false | Show only unclaimed or expired-claim tasks |
+| `--claimed-by` | | Filter by claimant name |
+| `--class` | | Filter by class of service |
+| `--group-by` | | Group results by field (assignee, tag, class, priority, status) |
 | `--sort` | id | Sort by: id, status, priority, created, updated, due |
 | `-r`, `--reverse` | false | Reverse sort order |
 | `-n`, `--limit` | 0 | Max results (0 = unlimited) |
@@ -233,7 +247,10 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--remove-dep` | Remove dependency task IDs (comma-separated) |
 | `--block` | Mark task as blocked with reason |
 | `--unblock` | Clear blocked state |
-| `-f`, `--force` | Override WIP limits when changing status |
+| `--claim` | Claim task for an agent (set claimed_by) |
+| `--release` | Release claim on task |
+| `--class` | Set class of service |
+| `-f`, `--force` | Override WIP limits and claims |
 
 ### `move`
 
@@ -250,7 +267,8 @@ kanban-md move 1,2,3 todo          # batch move
 |------|-------------|
 | `--next` | Advance to next status in the configured order |
 | `--prev` | Move back to previous status |
-| `--force` | Override WIP limit |
+| `--claim` | Claim task for an agent |
+| `--force` | Override WIP limits and claims |
 
 ### `delete`
 
@@ -275,6 +293,26 @@ kanban-md board --watch    # live-update on file changes
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-w`, `--watch` | false | Live-update the board on file changes (Ctrl+C to stop) |
+| `--group-by` | | Group by field (assignee, tag, class, priority, status) |
+
+### `pick`
+
+Atomically find and claim the next available task. Designed for multi-agent workflows where agents need exclusive task assignment.
+
+```bash
+kanban-md pick --claim agent-1
+kanban-md pick --claim agent-1 --status todo --move in-progress
+kanban-md pick --claim agent-1 --tag backend
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--claim` | (required) | Agent name to claim the task for |
+| `--status` | all non-terminal | Source status(es) to pick from (comma-separated) |
+| `--move` | | Also move picked task to this status |
+| `--tag` | | Only pick tasks with this tag |
+
+The pick algorithm selects from unclaimed, unblocked tasks with satisfied dependencies, prioritizing by class of service (expedite > fixed-date > standard > intangible), then by priority within each class. Fixed-date tasks are further sorted by earliest due date.
 
 ### `metrics`
 
@@ -451,6 +489,53 @@ kanban-md completion fish | source
 
 # PowerShell
 kanban-md completion powershell | Out-String | Invoke-Expression
+```
+
+## Multi-agent workflow
+
+kanban-md supports concurrent work by multiple agents (AI or human) through claims and classes of service.
+
+### Claims
+
+Claims provide cooperative locking — an agent claims a task before working on it, preventing other agents from picking the same task. Claims expire after the configured timeout (default: 1 hour).
+
+```bash
+# Agent picks next available task
+kanban-md pick --claim agent-1 --move in-progress
+
+# Agent finishes and releases
+kanban-md edit 5 --release
+kanban-md move 5 done
+
+# Another agent picks from a specific queue
+kanban-md pick --claim agent-2 --status todo --tag backend
+```
+
+### Classes of service
+
+Tasks can have a class of service that affects WIP limits and pick priority:
+
+| Class | Behavior |
+|-------|----------|
+| **expedite** | Bypasses column WIP limits. Has its own board-wide WIP limit (default: 1). Picked first. |
+| **fixed-date** | Picked by earliest due date within its priority tier. |
+| **standard** | Default class. Normal WIP and priority rules. |
+| **intangible** | Picked last. For background/maintenance work. |
+
+```bash
+kanban-md create "Critical hotfix" --class expedite --priority critical
+kanban-md create "Q2 deadline feature" --class fixed-date --due 2026-06-30
+```
+
+### Swimlanes
+
+Group board or list views by any field to see work distribution:
+
+```bash
+kanban-md board --group-by assignee     # who is working on what
+kanban-md board --group-by class        # class of service breakdown
+kanban-md list --group-by tag           # work by tag
+kanban-md list --group-by priority      # priority distribution
 ```
 
 ## Design principles
