@@ -1,0 +1,28 @@
+ backlog (3)         todo (0)            in-progress (0)     review (0)          done (15)          
+╭──────────────────╮  (empty)             (empty)             (empty)           ╭──────────────────╮
+│ #18 Backlog t... │                                                            │ #12 Done task 12 │
+│ medium           │                                                            │ critical         │
+╰──────────────────╯                                                            ╰──────────────────╯
+╭──────────────────╮                                                            ╭──────────────────╮
+│ #17 Backlog t... │                                                            │ #8 Done task 8   │
+│ medium           │                                                            │ critical         │
+╰──────────────────╯                                                            ╰──────────────────╯
+╭──────────────────╮                                                            ╭──────────────────╮
+│ #16 Backlog t... │                                                            │ #4 Done task 4   │
+│ medium           │                                                            │ critical         │
+╰──────────────────╯                                                            ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #13 Done task 13 │
+                                                                                │ high             │
+                                                                                ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #9 Done task 9   │
+                                                                                │ high             │
+                                                                                ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #5 Done task 5   │
+                                                                                │ high             │
+                                                                                ╰──────────────────╯
+                                                                                  ↓ 9 more          
+                                                                                                    
+ Scroll Test | 18 tasks | hjkl:navigate enter:detail m:move M:next d:delete ?:help q:quit           

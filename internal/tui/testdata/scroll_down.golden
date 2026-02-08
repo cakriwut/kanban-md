@@ -1,0 +1,29 @@
+ backlog (3)         todo (0)            in-progress (0)     review (0)          done (15)          
+╭──────────────────╮  (empty)             (empty)             (empty)             ↑ 5 more          
+│ #18 Backlog t... │                                                            ╭──────────────────╮
+│ medium           │                                                            │ #5 Done task 5   │
+╰──────────────────╯                                                            │ high             │
+╭──────────────────╮                                                            ╰──────────────────╯
+│ #17 Backlog t... │                                                            ╭──────────────────╮
+│ medium           │                                                            │ #1 Done task 1   │
+╰──────────────────╯                                                            │ high             │
+╭──────────────────╮                                                            ╰──────────────────╯
+│ #16 Backlog t... │                                                            ╭──────────────────╮
+│ medium           │                                                            │ #14 Done task 14 │
+╰──────────────────╯                                                            │ medium           │
+                                                                                ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #10 Done task 10 │
+                                                                                │ medium           │
+                                                                                ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #6 Done task 6   │
+                                                                                │ medium           │
+                                                                                ╰──────────────────╯
+                                                                                ╭──────────────────╮
+                                                                                │ #2 Done task 2   │
+                                                                                │ medium           │
+                                                                                ╰──────────────────╯
+                                                                                  ↓ 4 more          
+                                                                                                    
+ Scroll Test | 18 tasks | hjkl:navigate enter:detail m:move M:next d:delete ?:help q:quit           

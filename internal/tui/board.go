@@ -34,6 +34,8 @@ const (
 	keyUp   = "up"
 
 	tagMaxFraction = 2 // tags get at most 1/N of card width
+	cardHeight     = 4 // top border + 2 content lines + bottom border
+	reservedLines  = 3 // header (1) + blank line (1) + status bar (1)
 )
 
 // Board is the top-level bubbletea model.
@@ -62,8 +64,9 @@ type Board struct {
 
 // column groups tasks belonging to a single status.
 type column struct {
-	status string
-	tasks  []*task.Task
+	status    string
+	tasks     []*task.Task
+	scrollOff int // first visible row index
 }
 
 // NewBoard creates a new Board model from a config.
@@ -177,10 +180,12 @@ func (b *Board) handleNavigation(k string) {
 		col := b.currentColumn()
 		if col != nil && b.activeRow < len(col.tasks)-1 {
 			b.activeRow++
+			b.ensureVisible()
 		}
 	case "k", keyUp:
 		if b.activeRow > 0 {
 			b.activeRow--
+			b.ensureVisible()
 		}
 	}
 }
@@ -310,6 +315,38 @@ func (b *Board) clampRow() {
 	}
 	if b.activeRow >= len(col.tasks) {
 		b.activeRow = len(col.tasks) - 1
+	}
+	b.ensureVisible()
+}
+
+// maxVisibleCards returns how many cards fit vertically in the terminal.
+func (b *Board) maxVisibleCards() int {
+	if b.height <= reservedLines {
+		return 1
+	}
+	n := (b.height - reservedLines) / cardHeight
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// ensureVisible adjusts the active column's scroll offset so the
+// selected row is within the visible window.
+func (b *Board) ensureVisible() {
+	col := b.currentColumn()
+	if col == nil {
+		return
+	}
+	maxVis := b.maxVisibleCards()
+
+	// Scroll down if active row is below visible window.
+	if b.activeRow >= col.scrollOff+maxVis {
+		col.scrollOff = b.activeRow - maxVis + 1
+	}
+	// Scroll up if active row is above visible window.
+	if b.activeRow < col.scrollOff {
+		col.scrollOff = b.activeRow
 	}
 }
 
@@ -505,18 +542,43 @@ func (b *Board) renderColumn(colIdx int, col column, width int) string {
 		header = columnHeaderStyle.Width(width).Render(headerText)
 	}
 
-	// Cards.
-	cards := make([]string, 0, len(col.tasks))
-	for rowIdx, t := range col.tasks {
-		cards = append(cards, b.renderCard(t, colIdx == b.activeCol && rowIdx == b.activeRow, width))
+	// Determine visible card range.
+	maxVis := b.maxVisibleCards()
+	start := col.scrollOff
+	end := start + maxVis
+	if end > len(col.tasks) {
+		end = len(col.tasks)
 	}
-
-	if len(cards) == 0 {
-		cards = append(cards, dimStyle.Width(width).Render("  (empty)"))
+	if start > len(col.tasks) {
+		start = len(col.tasks)
 	}
 
 	parts := []string{header}
-	parts = append(parts, cards...)
+
+	// Show "↑ N more" indicator if scrolled down.
+	if start > 0 {
+		indicator := fmt.Sprintf("  ↑ %d more", start)
+		parts = append(parts, dimStyle.Width(width).Render(truncate(indicator, width)))
+	}
+
+	// Render visible cards.
+	if len(col.tasks) == 0 {
+		parts = append(parts, dimStyle.Width(width).Render("  (empty)"))
+	} else {
+		for rowIdx := start; rowIdx < end; rowIdx++ {
+			t := col.tasks[rowIdx]
+			active := colIdx == b.activeCol && rowIdx == b.activeRow
+			parts = append(parts, b.renderCard(t, active, width))
+		}
+	}
+
+	// Show "↓ N more" indicator if more cards below.
+	if end < len(col.tasks) {
+		remaining := len(col.tasks) - end
+		indicator := fmt.Sprintf("  ↓ %d more", remaining)
+		parts = append(parts, dimStyle.Width(width).Render(truncate(indicator, width)))
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 

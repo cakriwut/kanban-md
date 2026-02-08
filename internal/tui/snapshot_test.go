@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/antopolskiy/kanban-md/internal/task"
 	"github.com/antopolskiy/kanban-md/internal/tui"
 )
 
@@ -93,6 +95,75 @@ func TestSnapshot_BoardView60(t *testing.T) {
 	b, _ := setupTestBoard(t)
 	b.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
 	assertGolden(t, "board_view_60", b.View())
+}
+
+func TestSnapshot_ScrollDown(t *testing.T) {
+	b, _ := setupManyTasksBoard(t)
+	// Navigate to the "done" column (index 4) which has 15 tasks.
+	for range 4 {
+		b = sendKey(b, "l")
+	}
+	// Scroll down past the visible window.
+	for range 10 {
+		b = sendKey(b, "j")
+	}
+	assertGolden(t, "scroll_down", b.View())
+}
+
+func TestSnapshot_ManyTasks(t *testing.T) {
+	b, _ := setupManyTasksBoard(t)
+	assertGolden(t, "many_tasks", b.View())
+}
+
+func setupManyTasksBoard(t *testing.T) (*tui.Board, *config.Config) { //nolint:unparam // matches setupTestBoard signature
+	t.Helper()
+
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	tasksDir := filepath.Join(kanbanDir, "tasks")
+
+	if err := os.MkdirAll(tasksDir, 0o750); err != nil {
+		t.Fatalf("creating dirs: %v", err)
+	}
+
+	cfg := config.NewDefault("Scroll Test")
+	cfg.SetDir(kanbanDir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	// Create 15 tasks in "done" to force scrolling at height 30.
+	priorities := [4]string{"critical", "high", "medium", "low"}
+	for i := 1; i <= 15; i++ {
+		tk := &task.Task{
+			ID:       i,
+			Title:    fmt.Sprintf("Done task %d", i),
+			Status:   "done",
+			Priority: priorities[i%len(priorities)], //nolint:gosec // test data, no overflow
+		}
+		path := filepath.Join(tasksDir, task.GenerateFilename(i, tk.Title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	// Create 3 tasks in "backlog".
+	for i := 16; i <= 18; i++ {
+		tk := &task.Task{
+			ID:       i,
+			Title:    fmt.Sprintf("Backlog task %d", i),
+			Status:   "backlog",
+			Priority: "medium",
+		}
+		path := filepath.Join(tasksDir, task.GenerateFilename(i, tk.Title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	return b, cfg
 }
 
 func TestSnapshot_EmptyBoard(t *testing.T) {
