@@ -91,6 +91,9 @@ func TaskDetail(w io.Writer, t *task.Task) {
 
 	printField(w, "Status", t.Status)
 	printField(w, "Priority", t.Priority)
+	if t.Class != "" {
+		printField(w, "Class", t.Class)
+	}
 	printField(w, "Assignee", stringOrDash(t.Assignee))
 	if len(t.Tags) > 0 {
 		printField(w, "Tags", strings.Join(t.Tags, ", "))
@@ -114,6 +117,14 @@ func TaskDetail(w io.Writer, t *task.Task) {
 		if t.Started != nil {
 			printField(w, "Cycle time", FormatDuration(t.Completed.Sub(*t.Started)))
 		}
+	}
+
+	if t.ClaimedBy != "" {
+		claimStr := t.ClaimedBy
+		if t.ClaimedAt != nil {
+			claimStr += " (since " + t.ClaimedAt.Format("2006-01-02 15:04") + ")"
+		}
+		printField(w, "Claimed by", claimStr)
 	}
 
 	if t.Body != "" {
@@ -145,6 +156,15 @@ func OverviewTable(w io.Writer, s board.Overview) {
 
 	for _, pc := range s.Priorities {
 		fmt.Fprintf(w, "%-16s %6d\n", pc.Priority, pc.Count)
+	}
+
+	if len(s.Classes) > 0 {
+		fmt.Fprintln(w)
+		classHeader := fmt.Sprintf("%-16s %6s", "CLASS", "COUNT")
+		fmt.Fprintln(w, headerStyle.Render(classHeader))
+		for _, cc := range s.Classes {
+			fmt.Fprintf(w, "%-16s %6d\n", cc.Class, cc.Count)
+		}
 	}
 }
 
@@ -204,6 +224,29 @@ func ActivityLogTable(w io.Writer, entries []board.LogEntry) {
 		fmt.Fprintf(w, "%-20s %-10s %6d  %s\n",
 			e.Timestamp.Format("2006-01-02 15:04:05"),
 			e.Action, e.TaskID, e.Detail)
+	}
+}
+
+// GroupedTable renders a grouped board view with per-group status breakdowns.
+func GroupedTable(w io.Writer, gs board.GroupedSummary) {
+	if len(gs.Groups) == 0 {
+		fmt.Fprintln(os.Stderr, "No groups found.")
+		return
+	}
+
+	for i, g := range gs.Groups {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
+		title := fmt.Sprintf("%s (%d tasks)", g.Key, g.Total)
+		fmt.Fprintln(w, lipgloss.NewStyle().Bold(true).Render(title))
+
+		for _, ss := range g.Statuses {
+			if ss.Count == 0 {
+				continue
+			}
+			fmt.Fprintf(w, "  %-16s %d\n", ss.Status, ss.Count)
+		}
 	}
 }
 

@@ -57,7 +57,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	// Batch mode (force is guaranteed true here).
 	return runBatch(ids, func(id int) error {
-		return executeDelete(cfg, id)
+		return executeDelete(cfg, id, force)
 	})
 }
 
@@ -70,6 +70,11 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 
 	t, err := task.Read(path)
 	if err != nil {
+		return err
+	}
+
+	// Check claim before allowing delete.
+	if err = checkClaim(t, "", force, cfg.ClaimTimeoutDuration()); err != nil {
 		return err
 	}
 
@@ -108,8 +113,8 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 	return nil
 }
 
-// executeDelete performs the core delete: find, read, warn dependents, remove, log.
-func executeDelete(cfg *config.Config, id int) error {
+// executeDelete performs the core delete: find, read, claim check, warn dependents, remove, log.
+func executeDelete(cfg *config.Config, id int, force bool) error {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return err
@@ -117,6 +122,10 @@ func executeDelete(cfg *config.Config, id int) error {
 
 	t, err := task.Read(path)
 	if err != nil {
+		return err
+	}
+
+	if err = checkClaim(t, "", force, cfg.ClaimTimeoutDuration()); err != nil {
 		return err
 	}
 

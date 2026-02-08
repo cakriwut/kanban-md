@@ -27,7 +27,8 @@ Multiple IDs can be provided as a comma-separated list.`,
 func init() {
 	moveCmd.Flags().Bool("next", false, "move to next status")
 	moveCmd.Flags().Bool("prev", false, "move to previous status")
-	moveCmd.Flags().BoolP("force", "f", false, "override WIP limit")
+	moveCmd.Flags().String("claim", "", "claim task for an agent during move")
+	moveCmd.Flags().BoolP("force", "f", false, "override WIP limits and claims")
 	rootCmd.AddCommand(moveCmd)
 }
 
@@ -97,6 +98,12 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 		return nil, "", err
 	}
 
+	// Check claim before allowing move.
+	claimant, _ := cmd.Flags().GetString("claim")
+	if err = checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
+		return nil, "", err
+	}
+
 	newStatus, err := resolveTargetStatus(cmd, args, t, cfg)
 	if err != nil {
 		return nil, "", err
@@ -107,9 +114,15 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 		return t, "", nil
 	}
 
-	// Check WIP limit.
-	if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
-		return nil, "", err
+	// Check WIP limit (class-aware).
+	if t.Class != "" && len(cfg.Classes) > 0 {
+		if err := enforceWIPLimitForClass(cfg, t, t.Status, newStatus, force); err != nil {
+			return nil, "", err
+		}
+	} else {
+		if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
+			return nil, "", err
+		}
 	}
 
 	// Warn when moving a blocked task.
@@ -120,6 +133,14 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 	oldStatus := t.Status
 	t.Status = newStatus
 	task.UpdateTimestamps(t, oldStatus, newStatus, cfg)
+
+	// Apply claim if --claim flag provided.
+	if cmd.Flags().Changed("claim") && claimant != "" {
+		now := time.Now()
+		t.ClaimedBy = claimant
+		t.ClaimedAt = &now
+	}
+
 	t.Updated = time.Now()
 
 	if err := task.Write(path, t); err != nil {
@@ -180,6 +201,48 @@ func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, for
 		return err
 	}
 	return nil
+}
+
+// enforceWIPLimitForClass checks WIP limits considering class of service.
+// Expedite tasks bypass column WIP limits but have their own board-wide limit.
+func enforceWIPLimitForClass(cfg *config.Config, t *task.Task, currentStatus, targetStatus string, force bool) error {
+	classConf := cfg.ClassByName(t.Class)
+
+	// Check class-level board-wide WIP limit.
+	if classConf != nil && classConf.WIPLimit > 0 {
+		allTasks, _, err := task.ReadAllLenient(cfg.TasksPath())
+		if err != nil {
+			return fmt.Errorf("reading tasks for class WIP check: %w", err)
+		}
+		count := countByClass(allTasks, t.Class, t.ID)
+		if count >= classConf.WIPLimit {
+			if force {
+				fmt.Fprintf(os.Stderr, "Warning: %s WIP limit reached (%d/%d board-wide, overridden with --force)\n",
+					t.Class, count, classConf.WIPLimit)
+				return nil
+			}
+			return task.ValidateClassWIPExceeded(t.Class, classConf.WIPLimit, count)
+		}
+	}
+
+	// If class bypasses column WIP, skip column check.
+	if classConf != nil && classConf.BypassColumnWIP {
+		return nil
+	}
+
+	// Normal column WIP check.
+	return enforceWIPLimit(cfg, currentStatus, targetStatus, force)
+}
+
+// countByClass counts tasks with a given class, excluding a specific task ID.
+func countByClass(tasks []*task.Task, class string, excludeID int) int {
+	count := 0
+	for _, t := range tasks {
+		if t.Class == class && t.ID != excludeID {
+			count++
+		}
+	}
+	return count
 }
 
 func outputMoveResult(t *task.Task, changed bool) error {

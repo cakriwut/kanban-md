@@ -1,16 +1,24 @@
 // Package board provides board-level operations on task collections.
 package board
 
-import "github.com/antopolskiy/kanban-md/internal/task"
+import (
+	"time"
+
+	"github.com/antopolskiy/kanban-md/internal/task"
+)
 
 // FilterOptions defines which tasks to include.
 type FilterOptions struct {
-	Statuses   []string
-	Priorities []string
-	Assignee   string
-	Tag        string
-	Blocked    *bool // nil=no filter, true=only blocked, false=only not-blocked
-	ParentID   *int  // nil=no filter, non-nil=only tasks with this parent
+	Statuses     []string
+	Priorities   []string
+	Assignee     string
+	Tag          string
+	Blocked      *bool         // nil=no filter, true=only blocked, false=only not-blocked
+	ParentID     *int          // nil=no filter, non-nil=only tasks with this parent
+	Unclaimed    bool          // only unclaimed or expired-claim tasks
+	ClaimedBy    string        // filter to specific claimant
+	ClaimTimeout time.Duration // claim expiration for unclaimed filter
+	Class        string        // filter by class of service
 }
 
 // Filter returns tasks matching all specified criteria (AND logic).
@@ -25,6 +33,13 @@ func Filter(tasks []*task.Task, opts FilterOptions) []*task.Task {
 }
 
 func matchesFilter(t *task.Task, opts FilterOptions) bool {
+	if !matchesCoreFilter(t, opts) {
+		return false
+	}
+	return matchesExtendedFilter(t, opts)
+}
+
+func matchesCoreFilter(t *task.Task, opts FilterOptions) bool {
 	if len(opts.Statuses) > 0 && !containsStr(opts.Statuses, t.Status) {
 		return false
 	}
@@ -44,6 +59,30 @@ func matchesFilter(t *task.Task, opts FilterOptions) bool {
 		return false
 	}
 	return true
+}
+
+func matchesExtendedFilter(t *task.Task, opts FilterOptions) bool {
+	if opts.Unclaimed && !IsUnclaimed(t, opts.ClaimTimeout) {
+		return false
+	}
+	if opts.ClaimedBy != "" && t.ClaimedBy != opts.ClaimedBy {
+		return false
+	}
+	if opts.Class != "" && t.Class != opts.Class {
+		return false
+	}
+	return true
+}
+
+// IsUnclaimed returns true if the task has no active claim (unclaimed or expired).
+func IsUnclaimed(t *task.Task, timeout time.Duration) bool {
+	if t.ClaimedBy == "" {
+		return true
+	}
+	if timeout > 0 && t.ClaimedAt != nil {
+		return time.Since(*t.ClaimedAt) > timeout
+	}
+	return false
 }
 
 // FilterUnblocked returns tasks whose dependencies are all at a terminal status.

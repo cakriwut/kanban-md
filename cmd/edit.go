@@ -45,7 +45,10 @@ func init() {
 	editCmd.Flags().IntSlice("remove-dep", nil, "remove dependency task IDs")
 	editCmd.Flags().String("block", "", "mark task as blocked with reason")
 	editCmd.Flags().Bool("unblock", false, "clear blocked state")
-	editCmd.Flags().BoolP("force", "f", false, "override WIP limits when changing status")
+	editCmd.Flags().String("claim", "", "claim task for an agent")
+	editCmd.Flags().Bool("release", false, "release claim on task")
+	editCmd.Flags().String("class", "", "set class of service")
+	editCmd.Flags().BoolP("force", "f", false, "override WIP limits and claims")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -103,13 +106,29 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", err
 	}
 
+	// Check claim before allowing modifications.
+	claimant, _ := cmd.Flags().GetString("claim")
+	release, _ := cmd.Flags().GetBool("release")
+	if err = checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
+		return nil, "", err
+	}
+
 	oldTitle := t.Title
 	oldStatus := t.Status
 	wasBlocked := t.Blocked
+	wasClaimedBy := t.ClaimedBy
 	changed, err := applyEditFlags(cmd, t, cfg)
 	if err != nil {
 		return nil, "", err
 	}
+
+	// Apply claim/release flags.
+	if c, claimErr := applyClaimFlags(cmd, t, claimant, release); claimErr != nil {
+		return nil, "", claimErr
+	} else if c {
+		changed = true
+	}
+
 	if !changed {
 		return nil, "", clierr.New(clierr.NoChanges, "no changes specified")
 	}
@@ -119,10 +138,16 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", err
 	}
 
-	// Check WIP limit if status changed.
+	// Check WIP limit if status changed (class-aware).
 	if t.Status != oldStatus {
-		if err = enforceWIPLimit(cfg, oldStatus, t.Status, force); err != nil {
-			return nil, "", err
+		if t.Class != "" && len(cfg.Classes) > 0 {
+			if err = enforceWIPLimitForClass(cfg, t, oldStatus, t.Status, force); err != nil {
+				return nil, "", err
+			}
+		} else {
+			if err = enforceWIPLimit(cfg, oldStatus, t.Status, force); err != nil {
+				return nil, "", err
+			}
 		}
 	}
 
@@ -133,7 +158,7 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", err
 	}
 
-	logEditActivity(cfg, t, wasBlocked)
+	logEditActivity(cfg, t, wasBlocked, wasClaimedBy)
 	return t, newPath, nil
 }
 
@@ -158,8 +183,8 @@ func writeAndRename(path string, t *task.Task, oldTitle string) (string, error) 
 	return newPath, nil
 }
 
-// logEditActivity logs the edit and any block/unblock transitions.
-func logEditActivity(cfg *config.Config, t *task.Task, wasBlocked bool) {
+// logEditActivity logs the edit and any block/unblock/claim/release transitions.
+func logEditActivity(cfg *config.Config, t *task.Task, wasBlocked bool, wasClaimedBy string) {
 	logActivity(cfg, "edit", t.ID, t.Title)
 	if !wasBlocked && t.Blocked {
 		logActivity(cfg, "block", t.ID, t.BlockReason)
@@ -167,6 +192,35 @@ func logEditActivity(cfg *config.Config, t *task.Task, wasBlocked bool) {
 	if wasBlocked && !t.Blocked {
 		logActivity(cfg, "unblock", t.ID, t.Title)
 	}
+	if wasClaimedBy == "" && t.ClaimedBy != "" {
+		logActivity(cfg, "claim", t.ID, t.ClaimedBy)
+	}
+	if wasClaimedBy != "" && t.ClaimedBy == "" {
+		logActivity(cfg, "release", t.ID, wasClaimedBy)
+	}
+}
+
+// applyClaimFlags handles --claim and --release flags.
+func applyClaimFlags(cmd *cobra.Command, t *task.Task, claimant string, release bool) (bool, error) {
+	claimSet := cmd.Flags().Changed("claim")
+	if claimSet && release {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --claim and --release together")
+	}
+	if claimSet {
+		if claimant == "" {
+			return false, clierr.New(clierr.InvalidInput, "claim name is required (use --claim NAME)")
+		}
+		now := time.Now()
+		t.ClaimedBy = claimant
+		t.ClaimedAt = &now
+		return true, nil
+	}
+	if release {
+		t.ClaimedBy = ""
+		t.ClaimedAt = nil
+		return true, nil
+	}
+	return false, nil
 }
 
 func applyEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) (bool, error) {
@@ -225,6 +279,13 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 	}
 	if v, _ := cmd.Flags().GetString("body"); v != "" {
 		t.Body = v
+		changed = true
+	}
+	if v, _ := cmd.Flags().GetString("class"); v != "" {
+		if err := task.ValidateClass(v, cfg.ClassNames()); err != nil {
+			return false, err
+		}
+		t.Class = v
 		changed = true
 	}
 

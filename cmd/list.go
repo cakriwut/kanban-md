@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
@@ -30,6 +33,10 @@ func init() {
 	listCmd.Flags().Bool("not-blocked", false, "show only non-blocked tasks")
 	listCmd.Flags().Int("parent", 0, "filter by parent task ID")
 	listCmd.Flags().Bool("unblocked", false, "show only tasks with all dependencies satisfied")
+	listCmd.Flags().Bool("unclaimed", false, "show only unclaimed or expired-claim tasks")
+	listCmd.Flags().String("claimed-by", "", "filter by claimant")
+	listCmd.Flags().String("class", "", "filter by class of service")
+	listCmd.Flags().String("group-by", "", "group results by field ("+strings.Join(board.ValidGroupByFields(), ", ")+")")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -50,12 +57,32 @@ func runList(cmd *cobra.Command, _ []string) error {
 	notBlocked, _ := cmd.Flags().GetBool("not-blocked")
 	parentID, _ := cmd.Flags().GetInt("parent")
 	unblocked, _ := cmd.Flags().GetBool("unblocked")
+	unclaimed, _ := cmd.Flags().GetBool("unclaimed")
+	claimedBy, _ := cmd.Flags().GetString("claimed-by")
+	class, _ := cmd.Flags().GetString("class")
+	groupBy, _ := cmd.Flags().GetString("group-by")
+
+	if groupBy != "" && !slices.Contains(board.ValidGroupByFields(), groupBy) {
+		return clierr.Newf(clierr.InvalidGroupBy, "invalid --group-by field %q; valid: %s",
+			groupBy, strings.Join(board.ValidGroupByFields(), ", "))
+	}
 
 	filter := board.FilterOptions{
-		Statuses:   statuses,
-		Priorities: priorities,
-		Assignee:   assignee,
-		Tag:        tag,
+		Statuses:     statuses,
+		Priorities:   priorities,
+		Assignee:     assignee,
+		Tag:          tag,
+		ClaimTimeout: cfg.ClaimTimeoutDuration(),
+	}
+
+	if unclaimed {
+		filter.Unclaimed = true
+	}
+	if claimedBy != "" {
+		filter.ClaimedBy = claimedBy
+	}
+	if class != "" {
+		filter.Class = class
 	}
 
 	if blocked {
@@ -83,6 +110,15 @@ func runList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	printWarnings(warnings)
+
+	if groupBy != "" {
+		grouped := board.GroupBy(tasks, groupBy, cfg)
+		if outputFormat() == output.FormatJSON {
+			return output.JSON(os.Stdout, grouped)
+		}
+		output.GroupedTable(os.Stdout, grouped)
+		return nil
+	}
 
 	format := outputFormat()
 	if format == output.FormatJSON {

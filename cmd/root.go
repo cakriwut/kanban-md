@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -160,6 +161,34 @@ func checkWIPLimit(cfg *config.Config, statusCounts map[string]int, targetStatus
 // discarded because logging should never fail a command.
 func logActivity(cfg *config.Config, action string, taskID int, detail string) {
 	board.LogMutation(cfg.Dir(), action, taskID, detail)
+}
+
+// checkClaim verifies that a mutating operation is allowed on a claimed task.
+// If the task is unclaimed, claimed by the same agent, expired, or force is set,
+// the operation proceeds. Otherwise, returns a TaskClaimed error.
+func checkClaim(t *task.Task, claimant string, force bool, timeout time.Duration) error {
+	if t.ClaimedBy == "" {
+		return nil // unclaimed
+	}
+	if t.ClaimedBy == claimant && claimant != "" {
+		return nil // claimed by same agent
+	}
+	// Check if claim has expired.
+	if timeout > 0 && t.ClaimedAt != nil && time.Since(*t.ClaimedAt) > timeout {
+		t.ClaimedBy = ""
+		t.ClaimedAt = nil
+		return nil
+	}
+	if force {
+		t.ClaimedBy = ""
+		t.ClaimedAt = nil
+		return nil
+	}
+	remaining := "unknown"
+	if timeout > 0 && t.ClaimedAt != nil {
+		remaining = (timeout - time.Since(*t.ClaimedAt)).Truncate(time.Minute).String()
+	}
+	return task.ValidateTaskClaimed(t.ID, t.ClaimedBy, remaining)
 }
 
 // validateDeps validates parent and dependency references for a task.
