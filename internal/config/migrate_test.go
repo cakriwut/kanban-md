@@ -51,18 +51,44 @@ func TestMigrateNegativeVersionErrors(t *testing.T) {
 	}
 }
 
-func TestMigrateV1ToV2(t *testing.T) {
+func TestMigrateV1ToCurrentVersion(t *testing.T) {
 	cfg := NewDefault("Test")
 	cfg.Version = 1
+	// Clear fields that v2→v3 migration should set.
+	cfg.ClaimTimeout = ""
+	cfg.Classes = nil
+	cfg.Defaults.Class = ""
 
 	if err := migrate(cfg); err != nil {
-		t.Fatalf("migrate() v1→v2: %v", err)
+		t.Fatalf("migrate() v1→current: %v", err)
 	}
-	if cfg.Version != 2 {
-		t.Errorf("Version = %d, want 2", cfg.Version)
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
 	}
-	// WIPLimits should be nil (not set by migration).
-	if cfg.WIPLimits != nil {
-		t.Errorf("WIPLimits = %v, want nil", cfg.WIPLimits)
+}
+
+func TestMigrateV2ToV3(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 2
+	// Clear fields that v2→v3 migration should set.
+	cfg.ClaimTimeout = ""
+	cfg.Classes = nil
+	cfg.Defaults.Class = ""
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v2→v3: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.ClaimTimeout != DefaultClaimTimeout {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, DefaultClaimTimeout)
+	}
+	const expectedClasses = 4
+	if len(cfg.Classes) != expectedClasses {
+		t.Errorf("Classes len = %d, want %d", len(cfg.Classes), expectedClasses)
+	}
+	if cfg.Defaults.Class != DefaultClass {
+		t.Errorf("Defaults.Class = %q, want %q", cfg.Defaults.Class, DefaultClass)
 	}
 }

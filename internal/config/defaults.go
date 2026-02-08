@@ -10,12 +10,16 @@ const (
 	DefaultStatus = "backlog"
 	// DefaultPriority is the default priority for new tasks.
 	DefaultPriority = "medium"
+	// DefaultClass is the default class of service for new tasks.
+	DefaultClass = "standard"
+	// DefaultClaimTimeout is the default claim expiration as a duration string.
+	DefaultClaimTimeout = "1h"
 
 	// ConfigFileName is the name of the config file within the kanban directory.
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 2
+	CurrentVersion = 3
 )
 
 // Default slice values for a new board (slices cannot be const).
@@ -33,5 +37,13 @@ var (
 		"medium",
 		"high",
 		"critical",
+	}
+
+	// DefaultClasses defines the default classes of service.
+	DefaultClasses = []ClassConfig{
+		{Name: "expedite", WIPLimit: 1, BypassColumnWIP: true},
+		{Name: "fixed-date"},
+		{Name: "standard"},
+		{Name: "intangible"},
 	}
 )

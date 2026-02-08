@@ -38,10 +38,26 @@ func migrate(cfg *Config) error {
 // The migration function must increment cfg.Version after a successful migration.
 var migrations = map[int]func(*Config) error{
 	1: migrateV1ToV2,
+	2: migrateV2ToV3,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
 func migrateV1ToV2(cfg *Config) error { //nolint:unparam // signature must match migrations map type
 	cfg.Version = 2
+	return nil
+}
+
+// migrateV2ToV3 adds claim_timeout, classes of service, and defaults.class.
+func migrateV2ToV3(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	if cfg.ClaimTimeout == "" {
+		cfg.ClaimTimeout = DefaultClaimTimeout
+	}
+	if len(cfg.Classes) == 0 {
+		cfg.Classes = append([]ClassConfig{}, DefaultClasses...)
+	}
+	if cfg.Defaults.Class == "" {
+		cfg.Defaults.Class = DefaultClass
+	}
+	cfg.Version = 3
 	return nil
 }

@@ -95,8 +95,8 @@ func TestCompatV1Config(t *testing.T) {
 	}
 }
 
-func TestCompatV1ConfigMigratesToV2(t *testing.T) {
-	// v1 config should migrate to v2 and have nil WIP limits (unlimited).
+func TestCompatV1ConfigMigratesToCurrentVersion(t *testing.T) {
+	// v1 config should migrate through v1→v2→v3.
 	tmp := t.TempDir()
 	fixture := filepath.Join("testdata", "compat", "v1")
 	copyDir(t, fixture, tmp)
@@ -115,6 +115,13 @@ func TestCompatV1ConfigMigratesToV2(t *testing.T) {
 	// WIPLimit helper should return 0 for any status.
 	if limit := cfg.WIPLimit("in-progress"); limit != 0 {
 		t.Errorf("WIPLimit(in-progress) = %d, want 0", limit)
+	}
+	// v2→v3 migration should also have run.
+	if cfg.ClaimTimeout != DefaultClaimTimeout {
+		t.Errorf("ClaimTimeout = %q, want %q (from v2→v3 migration)", cfg.ClaimTimeout, DefaultClaimTimeout)
+	}
+	if cfg.Defaults.Class != DefaultClass {
+		t.Errorf("Defaults.Class = %q, want %q (from v2→v3 migration)", cfg.Defaults.Class, DefaultClass)
 	}
 }
 
@@ -147,6 +154,46 @@ func TestCompatV2Config(t *testing.T) {
 	}
 }
 
+func TestCompatV2ConfigMigratesToV3(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v2")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v2 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+
+	// Migration should set claim_timeout default.
+	if cfg.ClaimTimeout != DefaultClaimTimeout {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, DefaultClaimTimeout)
+	}
+
+	// Migration should set default classes.
+	const expectedClasses = 4
+	if len(cfg.Classes) != expectedClasses {
+		t.Fatalf("Classes len = %d, want %d", len(cfg.Classes), expectedClasses)
+	}
+	if cfg.Classes[0].Name != "expedite" {
+		t.Errorf("Classes[0].Name = %q, want %q", cfg.Classes[0].Name, "expedite")
+	}
+	if cfg.Classes[0].WIPLimit != 1 {
+		t.Errorf("Classes[0].WIPLimit = %d, want 1", cfg.Classes[0].WIPLimit)
+	}
+	if !cfg.Classes[0].BypassColumnWIP {
+		t.Error("Classes[0].BypassColumnWIP = false, want true")
+	}
+
+	// Migration should set defaults.class.
+	if cfg.Defaults.Class != DefaultClass {
+		t.Errorf("Defaults.Class = %q, want %q", cfg.Defaults.Class, DefaultClass)
+	}
+}
+
 func TestCompatV1TasksReadable(t *testing.T) {
 	// This test verifies that the current task reader can parse v1 task files.
 	// We only check that files exist and are well-formed here; detailed task
@@ -158,7 +205,7 @@ func TestCompatV1TasksReadable(t *testing.T) {
 		t.Fatalf("reading fixture dir: %v", err)
 	}
 
-	const expectedFiles = 5
+	const expectedFiles = 6
 	if len(entries) != expectedFiles {
 		t.Fatalf("expected %d fixture task files, got %d", expectedFiles, len(entries))
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -21,14 +22,16 @@ var (
 
 // Config represents the kanban board configuration.
 type Config struct {
-	Version    int            `yaml:"version"`
-	Board      BoardConfig    `yaml:"board"`
-	TasksDir   string         `yaml:"tasks_dir"`
-	Statuses   []string       `yaml:"statuses"`
-	Priorities []string       `yaml:"priorities"`
-	Defaults   DefaultsConfig `yaml:"defaults"`
-	WIPLimits  map[string]int `yaml:"wip_limits,omitempty"`
-	NextID     int            `yaml:"next_id"`
+	Version      int            `yaml:"version"`
+	Board        BoardConfig    `yaml:"board"`
+	TasksDir     string         `yaml:"tasks_dir"`
+	Statuses     []string       `yaml:"statuses"`
+	Priorities   []string       `yaml:"priorities"`
+	Defaults     DefaultsConfig `yaml:"defaults"`
+	WIPLimits    map[string]int `yaml:"wip_limits,omitempty"`
+	ClaimTimeout string         `yaml:"claim_timeout,omitempty"`
+	Classes      []ClassConfig  `yaml:"classes,omitempty"`
+	NextID       int            `yaml:"next_id"`
 
 	// dir is the absolute path to the kanban directory (not serialized).
 	dir string `yaml:"-"`
@@ -44,6 +47,14 @@ type BoardConfig struct {
 type DefaultsConfig struct {
 	Status   string `yaml:"status"`
 	Priority string `yaml:"priority"`
+	Class    string `yaml:"class,omitempty"`
+}
+
+// ClassConfig defines a class of service and its WIP rules.
+type ClassConfig struct {
+	Name            string `yaml:"name" json:"name"`
+	WIPLimit        int    `yaml:"wip_limit,omitempty" json:"wip_limit,omitempty"`
+	BypassColumnWIP bool   `yaml:"bypass_column_wip,omitempty" json:"bypass_column_wip,omitempty"`
 }
 
 // Dir returns the absolute path to the kanban directory.
@@ -64,14 +75,17 @@ func (c *Config) ConfigPath() string {
 // NewDefault creates a Config with default values.
 func NewDefault(name string) *Config {
 	return &Config{
-		Version:    CurrentVersion,
-		Board:      BoardConfig{Name: name},
-		TasksDir:   DefaultTasksDir,
-		Statuses:   append([]string{}, DefaultStatuses...),
-		Priorities: append([]string{}, DefaultPriorities...),
+		Version:      CurrentVersion,
+		Board:        BoardConfig{Name: name},
+		TasksDir:     DefaultTasksDir,
+		Statuses:     append([]string{}, DefaultStatuses...),
+		Priorities:   append([]string{}, DefaultPriorities...),
+		Classes:      append([]ClassConfig{}, DefaultClasses...),
+		ClaimTimeout: DefaultClaimTimeout,
 		Defaults: DefaultsConfig{
 			Status:   DefaultStatus,
 			Priority: DefaultPriority,
+			Class:    DefaultClass,
 		},
 		NextID: 1,
 	}
@@ -114,6 +128,14 @@ func (c *Config) Validate() error {
 	if err := c.validateWIPLimits(); err != nil {
 		return err
 	}
+	if err := c.validateClasses(); err != nil {
+		return err
+	}
+	if c.ClaimTimeout != "" {
+		if _, err := time.ParseDuration(c.ClaimTimeout); err != nil {
+			return fmt.Errorf("%w: invalid claim_timeout %q: %w", ErrInvalid, c.ClaimTimeout, err)
+		}
+	}
 	if c.NextID < 1 {
 		return fmt.Errorf("%w: next_id must be >= 1", ErrInvalid)
 	}
@@ -132,12 +154,77 @@ func (c *Config) validateWIPLimits() error {
 	return nil
 }
 
+func (c *Config) validateClasses() error {
+	if len(c.Classes) == 0 {
+		return nil // classes are optional
+	}
+	seen := make(map[string]bool, len(c.Classes))
+	for _, cl := range c.Classes {
+		if cl.Name == "" {
+			return fmt.Errorf("%w: class name is required", ErrInvalid)
+		}
+		if seen[cl.Name] {
+			return fmt.Errorf("%w: duplicate class name %q", ErrInvalid, cl.Name)
+		}
+		seen[cl.Name] = true
+		if cl.WIPLimit < 0 {
+			return fmt.Errorf("%w: class %q wip_limit must be >= 0", ErrInvalid, cl.Name)
+		}
+	}
+	if c.Defaults.Class != "" && !seen[c.Defaults.Class] {
+		return fmt.Errorf("%w: default class %q not in classes list", ErrInvalid, c.Defaults.Class)
+	}
+	return nil
+}
+
 // WIPLimit returns the WIP limit for a status, or 0 (unlimited).
 func (c *Config) WIPLimit(status string) int {
 	if c.WIPLimits == nil {
 		return 0
 	}
 	return c.WIPLimits[status]
+}
+
+// ClaimTimeoutDuration parses the claim_timeout string into a time.Duration.
+// Returns 0 (no expiry) if the field is empty or unparseable.
+func (c *Config) ClaimTimeoutDuration() time.Duration {
+	if c.ClaimTimeout == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(c.ClaimTimeout)
+	if err != nil {
+		return 0
+	}
+	return d
+}
+
+// ClassByName returns the ClassConfig for the given name, or nil if not found.
+func (c *Config) ClassByName(name string) *ClassConfig {
+	for i := range c.Classes {
+		if c.Classes[i].Name == name {
+			return &c.Classes[i]
+		}
+	}
+	return nil
+}
+
+// ClassNames returns the list of configured class names in order.
+func (c *Config) ClassNames() []string {
+	names := make([]string, len(c.Classes))
+	for i, cl := range c.Classes {
+		names[i] = cl.Name
+	}
+	return names
+}
+
+// ClassIndex returns the index of a class name in the configured order, or -1.
+func (c *Config) ClassIndex(class string) int {
+	for i, cl := range c.Classes {
+		if cl.Name == class {
+			return i
+		}
+	}
+	return -1
 }
 
 // Save writes the config to its config file.
