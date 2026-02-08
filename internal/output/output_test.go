@@ -40,10 +40,24 @@ func TestDetectFlagOverridesEnv(t *testing.T) {
 	}
 }
 
-func TestDetectDefaultIsTable(t *testing.T) {
+func TestDetectDefaultTTY(t *testing.T) {
 	t.Setenv("KANBAN_OUTPUT", "")
+	old := isTerminalFn
+	t.Cleanup(func() { isTerminalFn = old })
 
+	isTerminalFn = func() bool { return true }
 	if got := Detect(false, false); got != FormatTable {
-		t.Errorf("Detect(no flags, no env) = %d, want FormatTable (table is default)", got)
+		t.Errorf("Detect(TTY) = %d, want FormatTable", got)
+	}
+}
+
+func TestDetectDefaultPiped(t *testing.T) {
+	t.Setenv("KANBAN_OUTPUT", "")
+	old := isTerminalFn
+	t.Cleanup(func() { isTerminalFn = old })
+
+	isTerminalFn = func() bool { return false }
+	if got := Detect(false, false); got != FormatJSON {
+		t.Errorf("Detect(piped) = %d, want FormatJSON", got)
 	}
 }

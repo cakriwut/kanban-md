@@ -14,7 +14,7 @@ Most project management tools lock your data behind a UI or an API. kanban-md ta
 
 - **Plain files.** Every task is a Markdown file. You can read, edit, grep, and diff them with any tool you already use.
 - **Version-controlled by default.** Task files live in your repo alongside code. Every change is a commit. History is free.
-- **Built for automation.** Concise table output by default, structured JSON via `--json`, deterministic file naming, and a CLI-first interface make it easy to script and integrate with AI agents, CI pipelines, or custom tooling.
+- **Built for automation.** Auto-detects terminal vs piped output (table for humans, JSON for scripts), deterministic file naming, and a CLI-first interface make it easy to script and integrate with AI agents, CI pipelines, or custom tooling.
 - **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
 
 ## Installation
@@ -347,18 +347,23 @@ These work with any command:
 
 ### Output format
 
-The default output format is **table** (human-readable text) in all contexts.
-Use `--json` when you need structured output for scripts or tooling:
+Output format is auto-detected based on whether stdout is a terminal:
+- **TTY** (interactive terminal): table output (human-readable)
+- **Piped** (non-TTY): JSON output (machine-readable)
+
+Use `--json` or `--table` to override auto-detection:
 
 ```bash
-# Default: table output
+# Auto: table in terminal, JSON when piped
 kanban-md list --status todo
+kanban-md list --status todo | jq '.[].title'  # auto-JSON
 
-# Structured output for scripting
-kanban-md list --status todo --json | jq '.[].title'
+# Explicit overrides
+kanban-md list --json    # force JSON even in terminal
+kanban-md list --table   # force table even when piped
 ```
 
-Override priority: `--json`/`--table` flags > `KANBAN_OUTPUT` env var > table default.
+Override priority: `--json`/`--table` flags > `KANBAN_OUTPUT` env var > TTY auto-detection.
 
 ## Configuration
 
@@ -416,7 +421,7 @@ kanban-md completion powershell | Out-String | Invoke-Expression
 
 **Files are the API.** The CLI is a convenience layer over a simple file format. You can always fall back to editing files directly — the tool will pick up changes.
 
-**Predictable output.** Table output is the default everywhere — concise and readable for both humans and AI agents. JSON output (`--json`) follows a stable schema for scripting.
+**Predictable output.** Auto-detects TTY for table output (human-readable) or JSON (piped/scripted). Use `--json`/`--table` to override. JSON follows a stable schema for automation.
 
 **No hidden state.** Everything is in `config.yml` and the task files. There's no database, no cache, no lock file. Two people (or agents) can work on the same board by editing different files and merging via git.
 
