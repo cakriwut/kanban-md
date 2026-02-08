@@ -12,6 +12,8 @@ Detailed description of the changes, that can be multiline, but do not artificia
 
 - When making changes that affect user-facing behavior (new commands, new flags, changed defaults, new installation methods, etc.), update `README.md` to reflect those changes.
 
+- Whenever any research is done (including by the subagents), it should be documented as a report in docs/research/YYYY-MM-DD-<description>.md. In case of subagents, the need to be instructed to create the report file and on completion return only the path to the report, so that the main agent can read and analyze it.
+
 ## Backward Compatibility
 
 When modifying `config.yml` schema or task file frontmatter, you must ensure backward compatibility:
@@ -94,4 +96,3 @@ When you encounter problems or have ideas while using the tool, create tasks for
   ```
 - Always add a `--body` explaining what happened, what you expected, and (for bugs) how to reproduce.
 - These tasks help us dogfood the tool and build a backlog of real-world improvements.
-
