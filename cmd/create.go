@@ -60,7 +60,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate dependency references.
-	if err := validateCreateDeps(cfg, t); err != nil {
+	if err := validateDeps(cfg, t); err != nil {
 		return err
 	}
 
@@ -142,20 +142,6 @@ func applyCreateFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) erro
 	}
 	if v, _ := cmd.Flags().GetString("body"); v != "" {
 		t.Body = v
-	}
-	return nil
-}
-
-func validateCreateDeps(cfg *config.Config, t *task.Task) error {
-	if t.Parent != nil {
-		if err := validateDepIDs(cfg.TasksPath(), t.ID, []int{*t.Parent}); err != nil {
-			return fmt.Errorf("invalid parent: %w", err)
-		}
-	}
-	if len(t.DependsOn) > 0 {
-		if err := validateDepIDs(cfg.TasksPath(), t.ID, t.DependsOn); err != nil {
-			return err
-		}
 	}
 	return nil
 }

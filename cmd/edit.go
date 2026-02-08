@@ -69,54 +69,17 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 	// Batch mode.
 	return runBatch(ids, func(id int) error {
-		return editSingleCore(cfg, id, cmd, force)
+		_, _, err := executeEdit(cfg, id, cmd, force)
+		return err
 	})
 }
 
 // editSingleTask handles a single task edit with full output.
 func editSingleTask(cfg *config.Config, id int, cmd *cobra.Command, force bool) error {
-	path, err := task.FindByID(cfg.TasksPath(), id)
+	t, newPath, err := executeEdit(cfg, id, cmd, force)
 	if err != nil {
 		return err
 	}
-
-	t, err := task.Read(path)
-	if err != nil {
-		return err
-	}
-
-	oldTitle := t.Title
-	oldStatus := t.Status
-	wasBlocked := t.Blocked
-	changed, err := applyEditFlags(cmd, t, cfg)
-	if err != nil {
-		return err
-	}
-	if !changed {
-		return clierr.New(clierr.NoChanges, "no changes specified")
-	}
-
-	// Validate dependency references.
-	if err = validateEditDeps(cfg, t); err != nil {
-		return err
-	}
-
-	// Check WIP limit if status changed.
-	if t.Status != oldStatus {
-		if err = enforceWIPLimit(cfg, oldStatus, t.Status, force); err != nil {
-			return err
-		}
-	}
-
-	t.Updated = time.Now()
-
-	var newPath string
-	newPath, err = writeAndRename(path, t, oldTitle)
-	if err != nil {
-		return err
-	}
-
-	logEditActivity(cfg, t, wasBlocked)
 
 	if outputFormat() == output.FormatJSON {
 		t.File = newPath
@@ -127,16 +90,17 @@ func editSingleTask(cfg *config.Config, id int, cmd *cobra.Command, force bool) 
 	return nil
 }
 
-// editSingleCore performs the core edit logic without output (for batch mode).
-func editSingleCore(cfg *config.Config, id int, cmd *cobra.Command, force bool) error {
+// executeEdit performs the core edit: find, read, apply, validate, write, log.
+// Returns the modified task and its new file path.
+func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*task.Task, string, error) {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	t, err := task.Read(path)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	oldTitle := t.Title
@@ -144,30 +108,33 @@ func editSingleCore(cfg *config.Config, id int, cmd *cobra.Command, force bool) 
 	wasBlocked := t.Blocked
 	changed, err := applyEditFlags(cmd, t, cfg)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	if !changed {
-		return clierr.New(clierr.NoChanges, "no changes specified")
+		return nil, "", clierr.New(clierr.NoChanges, "no changes specified")
 	}
 
-	if err = validateEditDeps(cfg, t); err != nil {
-		return err
+	// Validate dependency references.
+	if err = validateDeps(cfg, t); err != nil {
+		return nil, "", err
 	}
 
+	// Check WIP limit if status changed.
 	if t.Status != oldStatus {
 		if err = enforceWIPLimit(cfg, oldStatus, t.Status, force); err != nil {
-			return err
+			return nil, "", err
 		}
 	}
 
 	t.Updated = time.Now()
 
-	if _, err = writeAndRename(path, t, oldTitle); err != nil {
-		return err
+	newPath, err := writeAndRename(path, t, oldTitle)
+	if err != nil {
+		return nil, "", err
 	}
 
 	logEditActivity(cfg, t, wasBlocked)
-	return nil
+	return t, newPath, nil
 }
 
 // writeAndRename writes the task and renames the file if the title changed.
@@ -447,18 +414,4 @@ func removeAll(slice []string, items ...string) []string {
 		}
 	}
 	return result
-}
-
-func validateEditDeps(cfg *config.Config, t *task.Task) error {
-	if t.Parent != nil {
-		if err := validateDepIDs(cfg.TasksPath(), t.ID, []int{*t.Parent}); err != nil {
-			return fmt.Errorf("invalid parent: %w", err)
-		}
-	}
-	if len(t.DependsOn) > 0 {
-		if err := validateDepIDs(cfg.TasksPath(), t.ID, t.DependsOn); err != nil {
-			return err
-		}
-	}
-	return nil
 }

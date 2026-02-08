@@ -57,11 +57,11 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	// Batch mode (force is guaranteed true here).
 	return runBatch(ids, func(id int) error {
-		return deleteSingleCore(cfg, id)
+		return executeDelete(cfg, id)
 	})
 }
 
-// deleteSingleTask handles a single task delete with full output and prompting.
+// deleteSingleTask handles a single task delete with confirmation and output.
 func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
@@ -92,14 +92,11 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 		}
 	}
 
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("deleting task file: %w", err)
+	if err := removeAndLog(cfg, path, t); err != nil {
+		return err
 	}
 
-	logActivity(cfg, "delete", t.ID, t.Title)
-
-	format := outputFormat()
-	if format == output.FormatJSON {
+	if outputFormat() == output.FormatJSON {
 		return output.JSON(os.Stdout, map[string]interface{}{
 			"status": "deleted",
 			"id":     t.ID,
@@ -111,8 +108,8 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 	return nil
 }
 
-// deleteSingleCore performs the core delete logic without output (for batch mode).
-func deleteSingleCore(cfg *config.Config, id int) error {
+// executeDelete performs the core delete: find, read, warn dependents, remove, log.
+func executeDelete(cfg *config.Config, id int) error {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return err
@@ -124,11 +121,14 @@ func deleteSingleCore(cfg *config.Config, id int) error {
 	}
 
 	warnDependents(cfg.TasksPath(), t.ID)
+	return removeAndLog(cfg, path, t)
+}
 
+// removeAndLog removes the task file and logs the activity.
+func removeAndLog(cfg *config.Config, path string, t *task.Task) error {
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("deleting task file: %w", err)
 	}
-
 	logActivity(cfg, "delete", t.ID, t.Title)
 	return nil
 }

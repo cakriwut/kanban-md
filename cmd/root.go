@@ -164,6 +164,21 @@ func logActivity(cfg *config.Config, action string, taskID int, detail string) {
 	}
 }
 
+// validateDeps validates parent and dependency references for a task.
+func validateDeps(cfg *config.Config, t *task.Task) error {
+	if t.Parent != nil {
+		if err := validateDepIDs(cfg.TasksPath(), t.ID, []int{*t.Parent}); err != nil {
+			return fmt.Errorf("invalid parent: %w", err)
+		}
+	}
+	if len(t.DependsOn) > 0 {
+		if err := validateDepIDs(cfg.TasksPath(), t.ID, t.DependsOn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // parseIDs splits a comma-separated ID string into deduplicated int IDs.
 func parseIDs(arg string) ([]int, error) {
 	parts := strings.Split(arg, ",")

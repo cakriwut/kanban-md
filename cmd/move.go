@@ -50,36 +50,66 @@ func runMove(cmd *cobra.Command, args []string) error {
 	// Batch mode.
 	force, _ := cmd.Flags().GetBool("force")
 	return runBatch(ids, func(id int) error {
-		return moveSingleCore(cfg, id, cmd, args, force)
+		_, _, err := executeMove(cfg, id, cmd, args, force)
+		return err
 	})
+}
+
+// moveResult wraps a task with a changed flag for JSON output.
+type moveResult struct {
+	*task.Task
+	Changed bool `json:"changed"`
 }
 
 // moveSingleTask handles a single task move with full output.
 func moveSingleTask(cfg *config.Config, id int, cmd *cobra.Command, args []string) error {
-	path, err := task.FindByID(cfg.TasksPath(), id)
+	force, _ := cmd.Flags().GetBool("force")
+
+	t, oldStatus, err := executeMove(cfg, id, cmd, args, force)
 	if err != nil {
 		return err
+	}
+
+	// Idempotent: status didn't change.
+	if oldStatus == "" {
+		return outputMoveResult(t, false)
+	}
+
+	if outputFormat() == output.FormatJSON {
+		return outputMoveResult(t, true)
+	}
+
+	output.Messagef(os.Stdout, "Moved task #%d: %s → %s", id, oldStatus, t.Status)
+	return nil
+}
+
+// executeMove performs the core move: find, read, resolve, wip check, write, log.
+// Returns (task, oldStatus, error). If the task was already at the target status
+// (idempotent), oldStatus is empty and the task is returned unchanged.
+func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, force bool) (*task.Task, string, error) {
+	path, err := task.FindByID(cfg.TasksPath(), id)
+	if err != nil {
+		return nil, "", err
 	}
 
 	t, err := task.Read(path)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	newStatus, err := resolveTargetStatus(cmd, args, t, cfg)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	// Idempotent: if already at target status, succeed without writing.
 	if t.Status == newStatus {
-		return outputMoveResult(t, false)
+		return t, "", nil
 	}
 
 	// Check WIP limit.
-	force, _ := cmd.Flags().GetBool("force")
 	if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
-		return err
+		return nil, "", err
 	}
 
 	// Warn when moving a blocked task.
@@ -94,55 +124,11 @@ func moveSingleTask(cfg *config.Config, id int, cmd *cobra.Command, args []strin
 	t.Updated = now
 
 	if err := task.Write(path, t); err != nil {
-		return fmt.Errorf("writing task: %w", err)
+		return nil, "", fmt.Errorf("writing task: %w", err)
 	}
 
 	logActivity(cfg, "move", id, oldStatus+" -> "+newStatus)
-
-	if outputFormat() == output.FormatJSON {
-		return outputMoveResult(t, true)
-	}
-
-	output.Messagef(os.Stdout, "Moved task #%d: %s → %s", id, oldStatus, newStatus)
-	return nil
-}
-
-// moveSingleCore performs the core move logic without output (for batch mode).
-func moveSingleCore(cfg *config.Config, id int, cmd *cobra.Command, args []string, force bool) error {
-	path, err := task.FindByID(cfg.TasksPath(), id)
-	if err != nil {
-		return err
-	}
-
-	t, err := task.Read(path)
-	if err != nil {
-		return err
-	}
-
-	newStatus, err := resolveTargetStatus(cmd, args, t, cfg)
-	if err != nil {
-		return err
-	}
-
-	if t.Status == newStatus {
-		return nil // idempotent
-	}
-
-	if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
-		return err
-	}
-
-	oldStatus := t.Status
-	t.Status = newStatus
-	updateTimestamps(t, oldStatus, newStatus, cfg)
-	t.Updated = time.Now()
-
-	if err := task.Write(path, t); err != nil {
-		return fmt.Errorf("writing task: %w", err)
-	}
-
-	logActivity(cfg, "move", id, oldStatus+" -> "+newStatus)
-	return nil
+	return t, oldStatus, nil
 }
 
 func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *config.Config) (string, error) {
@@ -195,12 +181,6 @@ func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, for
 		return err
 	}
 	return nil
-}
-
-// moveResult wraps a task with a changed flag for JSON output.
-type moveResult struct {
-	*task.Task
-	Changed bool `json:"changed"`
 }
 
 // updateTimestamps sets Started and Completed based on the status transition.
