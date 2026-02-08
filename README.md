@@ -104,7 +104,7 @@ Optional body with more detail, context, or notes.
 The `config.yml` tracks board settings:
 
 ```yaml
-version: 1
+version: 2
 board:
   name: My Project
 tasks_dir: tasks
@@ -119,6 +119,9 @@ priorities:
   - medium
   - high
   - critical
+wip_limits:
+  in-progress: 3
+  review: 2
 defaults:
   status: backlog
   priority: medium
@@ -132,13 +135,14 @@ next_id: 4
 Create a new kanban board.
 
 ```bash
-kanban-md init [--name NAME] [--statuses s1,s2,s3]
+kanban-md init [--name NAME] [--statuses s1,s2,s3] [--wip-limit status:N]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--name` | Board name (defaults to parent directory name) |
 | `--statuses` | Comma-separated status list (default: backlog,todo,in-progress,review,done) |
+| `--wip-limit` | WIP limit per status (format: `status:N`, repeatable) |
 
 ### `create`
 
@@ -156,6 +160,8 @@ kanban-md create TITLE [FLAGS]
 | `--tags` | | Comma-separated tags |
 | `--due` | | Due date (YYYY-MM-DD) |
 | `--estimate` | | Time estimate (e.g. 4h, 2d) |
+| `--parent` | | Parent task ID |
+| `--depends-on` | | Dependency task IDs (comma-separated) |
 | `--body` | | Task description |
 
 ### `list`
@@ -172,6 +178,10 @@ kanban-md list [FLAGS]
 | `--priority` | | Filter by priority (comma-separated) |
 | `--assignee` | | Filter by assignee |
 | `--tag` | | Filter by tag |
+| `--blocked` | false | Show only blocked tasks |
+| `--not-blocked` | false | Show only non-blocked tasks |
+| `--parent` | | Filter by parent task ID |
+| `--unblocked` | false | Show only tasks with all dependencies satisfied |
 | `--sort` | id | Sort by: id, status, priority, created, updated, due |
 | `-r`, `--reverse` | false | Reverse sort order |
 | `-n`, `--limit` | 0 | Max results (0 = unlimited) |
@@ -205,6 +215,17 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--clear-due` | Remove due date |
 | `--estimate` | New time estimate |
 | `--body` | New body text |
+| `--started` | Set started date (YYYY-MM-DD) |
+| `--clear-started` | Clear started timestamp |
+| `--completed` | Set completed date (YYYY-MM-DD) |
+| `--clear-completed` | Clear completed timestamp |
+| `--parent` | Set parent task ID |
+| `--clear-parent` | Clear parent |
+| `--add-dep` | Add dependency task IDs (comma-separated) |
+| `--remove-dep` | Remove dependency task IDs (comma-separated) |
+| `--block` | Mark task as blocked with reason |
+| `--unblock` | Clear blocked state |
+| `-f`, `--force` | Override WIP limits when changing status |
 
 ### `move`
 
@@ -233,6 +254,41 @@ kanban-md delete 1,2,3 --force     # batch delete
 ```
 
 Prompts for confirmation in interactive terminals. Use `--force` to skip the prompt (required in non-interactive contexts like scripts). Batch delete always requires `--force`.
+
+### `board`
+
+Show a board summary with task counts per status, WIP utilization, blocked/overdue counts, and priority distribution. Aliases: `summary`.
+
+```bash
+kanban-md board
+```
+
+### `metrics`
+
+Show flow metrics: throughput, average lead/cycle time, flow efficiency, and aging work items.
+
+```bash
+kanban-md metrics [--since YYYY-MM-DD]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since` | | Only include tasks completed after this date |
+
+### `log`
+
+Show the activity log of board mutations (create, move, edit, delete, block, unblock).
+
+```bash
+kanban-md log [FLAGS]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since` | | Show entries after this date (YYYY-MM-DD) |
+| `--limit` | 0 | Maximum number of entries (most recent) |
+| `--action` | | Filter by action type (create, move, edit, delete, block, unblock) |
+| `--task` | | Filter by task ID |
 
 ### `config`
 

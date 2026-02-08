@@ -2814,3 +2814,56 @@ func TestDefaultOutputMetrics(t *testing.T) {
 		t.Errorf("default metrics missing throughput:\n%s", r.stdout)
 	}
 }
+
+func TestREADMEDocumentsAllCommands(t *testing.T) {
+	readmePath := filepath.Join("..", "README.md")
+	data, err := os.ReadFile(readmePath) //nolint:gosec // test file
+	if err != nil {
+		t.Fatalf("reading README: %v", err)
+	}
+	readme := string(data)
+
+	// Every user-facing command must have a ### `command` section.
+	commands := []string{
+		"init", "create", "list", "show", "edit", "move", "delete",
+		"board", "metrics", "log", "config", "context",
+	}
+	for _, cmd := range commands {
+		heading := "### `" + cmd + "`"
+		if !strings.Contains(readme, heading) {
+			t.Errorf("README missing command section: %s", heading)
+		}
+	}
+
+	// Key flags that must be documented somewhere in the README.
+	requiredFlags := map[string][]string{
+		"init":   {"--wip-limit"},
+		"create": {"--parent", "--depends-on"},
+		"edit": {
+			"--started", "--clear-started", "--completed", "--clear-completed",
+			"--parent", "--clear-parent", "--add-dep", "--remove-dep",
+			"--block", "--unblock", "--force",
+		},
+		"list":    {"--blocked", "--not-blocked", "--parent", "--unblocked"},
+		"metrics": {"--since"},
+		"log":     {"--since", "--limit", "--action", "--task"},
+	}
+	for cmd, flags := range requiredFlags {
+		for _, flag := range flags {
+			// Flag should appear in the README (in the command's section or flags table).
+			if !strings.Contains(readme, "`"+flag+"`") {
+				t.Errorf("README missing flag %s for command %s", flag, cmd)
+			}
+		}
+	}
+
+	// Config example must show current schema version.
+	if !strings.Contains(readme, "version: 2") {
+		t.Error("README config example still shows old version (should be version: 2)")
+	}
+
+	// Config example must mention wip_limits.
+	if !strings.Contains(readme, "wip_limits") {
+		t.Error("README config example missing wip_limits field")
+	}
+}
