@@ -96,6 +96,18 @@ func ReadLog(kanbanDir string, opts LogFilterOptions) ([]LogEntry, error) {
 	return entries, nil
 }
 
+// LogMutation appends an activity log entry. Errors are silently discarded
+// because logging should never fail a command.
+func LogMutation(kanbanDir, action string, taskID int, detail string) {
+	entry := LogEntry{
+		Timestamp: time.Now(),
+		Action:    action,
+		TaskID:    taskID,
+		Detail:    detail,
+	}
+	_ = AppendLog(kanbanDir, entry)
+}
+
 func matchesLogFilter(entry LogEntry, opts LogFilterOptions) bool {
 	if !opts.Since.IsZero() && entry.Timestamp.Before(opts.Since) {
 		return false

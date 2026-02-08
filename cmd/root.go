@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -157,18 +156,10 @@ func checkWIPLimit(cfg *config.Config, statusCounts map[string]int, targetStatus
 	return nil
 }
 
-// logActivity appends an entry to the activity log. Errors are warned to
-// stderr but never fail the command.
+// logActivity appends an entry to the activity log. Errors are silently
+// discarded because logging should never fail a command.
 func logActivity(cfg *config.Config, action string, taskID int, detail string) {
-	entry := board.LogEntry{
-		Timestamp: time.Now(),
-		Action:    action,
-		TaskID:    taskID,
-		Detail:    detail,
-	}
-	if err := board.AppendLog(cfg.Dir(), entry); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to write activity log: %v\n", err)
-	}
+	board.LogMutation(cfg.Dir(), action, taskID, detail)
 }
 
 // validateDeps validates parent and dependency references for a task.

@@ -1,4 +1,4 @@
-package cmd
+package task_test
 
 import (
 	"testing"
@@ -14,10 +14,9 @@ func testConfig() *config.Config {
 
 func TestUpdateTimestamps_FirstMoveFromInitial(t *testing.T) {
 	cfg := testConfig()
-	// Default statuses: [backlog, todo, in-progress, review, done]
 	tk := &task.Task{Status: "todo"}
 
-	updateTimestamps(tk, "backlog", "todo", cfg)
+	task.UpdateTimestamps(tk, "backlog", "todo", cfg)
 
 	if tk.Started == nil {
 		t.Fatal("Started should be set on first move out of initial status")
@@ -32,7 +31,7 @@ func TestUpdateTimestamps_SubsequentMovePreservesStarted(t *testing.T) {
 	originalStarted := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tk := &task.Task{Status: "in-progress", Started: &originalStarted}
 
-	updateTimestamps(tk, "todo", "in-progress", cfg)
+	task.UpdateTimestamps(tk, "todo", "in-progress", cfg)
 
 	if tk.Started != &originalStarted {
 		t.Error("Started should not be overwritten on subsequent moves")
@@ -44,7 +43,7 @@ func TestUpdateTimestamps_MoveToTerminal(t *testing.T) {
 	started := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tk := &task.Task{Status: "done", Started: &started}
 
-	updateTimestamps(tk, "review", "done", cfg)
+	task.UpdateTimestamps(tk, "review", "done", cfg)
 
 	if tk.Completed == nil {
 		t.Fatal("Completed should be set on move to terminal status")
@@ -58,7 +57,7 @@ func TestUpdateTimestamps_DirectToTerminal(t *testing.T) {
 	cfg := testConfig()
 	tk := &task.Task{Status: "done"}
 
-	updateTimestamps(tk, "backlog", "done", cfg)
+	task.UpdateTimestamps(tk, "backlog", "done", cfg)
 
 	if tk.Started == nil {
 		t.Fatal("Started should be set on direct move to terminal")
@@ -74,7 +73,7 @@ func TestUpdateTimestamps_ReopenClearsCompleted(t *testing.T) {
 	completed := time.Date(2026, 2, 1, 9, 0, 0, 0, time.UTC)
 	tk := &task.Task{Status: "review", Started: &started, Completed: &completed}
 
-	updateTimestamps(tk, "done", "review", cfg)
+	task.UpdateTimestamps(tk, "done", "review", cfg)
 
 	if tk.Completed != nil {
 		t.Error("Completed should be cleared when moving back from terminal")
@@ -89,7 +88,7 @@ func TestUpdateTimestamps_MiddleMoveNoChange(t *testing.T) {
 	started := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tk := &task.Task{Status: "in-progress", Started: &started}
 
-	updateTimestamps(tk, "todo", "in-progress", cfg)
+	task.UpdateTimestamps(tk, "todo", "in-progress", cfg)
 
 	if tk.Started != &started {
 		t.Error("Started should not change on middle status move")

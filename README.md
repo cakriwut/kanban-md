@@ -33,6 +33,14 @@ go install github.com/antopolskiy/kanban-md@latest
 
 Homebrew also installs `kbmd` as a shorthand alias for `kanban-md`.
 
+### Interactive TUI
+
+An interactive terminal UI is also available:
+
+```bash
+go install github.com/antopolskiy/kanban-md/cmd/kanban-md-tui@latest
+```
+
 ### Binary downloads
 
 Pre-built binaries for macOS, Linux, and Windows are available on the [Releases](https://github.com/antopolskiy/kanban-md/releases/latest) page.
@@ -261,7 +269,12 @@ Show a board summary with task counts per status, WIP utilization, blocked/overd
 
 ```bash
 kanban-md board
+kanban-md board --watch    # live-update on file changes
 ```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-w`, `--watch` | false | Live-update the board on file changes (Ctrl+C to stop) |
 
 ### `metrics`
 
@@ -333,6 +346,29 @@ kanban-md context --days 14                   # recently completed lookback
 | `--days` | 7 | Recently completed lookback in days |
 
 When using `--write-to`, the context block is wrapped in HTML comment markers (`<!-- BEGIN kanban-md context -->` / `<!-- END kanban-md context -->`). If the file already contains these markers, only the block between them is replaced — all other content is preserved.
+
+## Interactive TUI
+
+`kanban-md-tui` provides a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
+
+```bash
+kanban-md-tui             # launch from any directory with a kanban/ board
+kanban-md-tui --dir PATH  # point to a specific kanban directory
+```
+
+### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `h` / `l` | Move between columns |
+| `j` / `k` | Move between tasks within a column |
+| `Enter` | View task details |
+| `m` | Move task to a different status (picker dialog) |
+| `M` | Move task to next status |
+| `d` | Delete task (with confirmation) |
+| `r` | Refresh board |
+| `?` | Show help |
+| `q` / `Ctrl+C` | Quit |
 
 ## Global flags
 
