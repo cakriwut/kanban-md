@@ -2701,6 +2701,48 @@ func TestDefaultOutputBoard(t *testing.T) {
 	}
 }
 
+func TestVersionDefault(t *testing.T) {
+	// Binary built without ldflags should report "dev".
+	r := runKanban(t, t.TempDir(), "--version")
+	if r.exitCode != 0 {
+		t.Fatalf("--version failed: %s", r.stderr)
+	}
+	if !strings.Contains(r.stdout, "dev") {
+		t.Errorf("default version should contain 'dev', got: %s", r.stdout)
+	}
+}
+
+func TestVersionLdflags(t *testing.T) {
+	// Build a separate binary with ldflags to verify version injection works.
+	tmp := t.TempDir()
+	binName := "kanban-md-version-test"
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+	versionBin := filepath.Join(tmp, binName)
+	wantVersion := "1.2.3-test"
+
+	//nolint:gosec,noctx // building test binary with ldflags
+	build := exec.Command("go", "build",
+		"-ldflags", "-X github.com/antopolskiy/kanban-md/cmd.version="+wantVersion,
+		"-o", versionBin, "..")
+	build.Stderr = os.Stderr
+	if err := build.Run(); err != nil {
+		t.Fatalf("building binary with ldflags: %v", err)
+	}
+
+	//nolint:gosec,noctx // running test binary
+	cmd := exec.Command(versionBin, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("running --version: %v", err)
+	}
+
+	if !strings.Contains(string(out), wantVersion) {
+		t.Errorf("version should contain %q, got: %s", wantVersion, string(out))
+	}
+}
+
 func TestDefaultOutputMetrics(t *testing.T) {
 	kanbanDir := initBoard(t)
 

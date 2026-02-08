@@ -4,7 +4,9 @@ before:
   hooks:
     - go mod download
 builds:
-  - env:
+  - ldflags:
+      - -s -w -X github.com/antopolskiy/kanban-md/cmd.version={{.Version}}
+    env:
       - CGO_ENABLED=0
     goos:
       - darwin

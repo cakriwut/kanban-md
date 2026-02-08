@@ -32,9 +32,11 @@ run: ## go run
 mod: ## go mod tidy
 	go mod tidy
 
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 .PHONY: build
 build: ## go build
-	go build -o dist/kanban-md .
+	go build -ldflags "-X github.com/antopolskiy/kanban-md/cmd.version=$(VERSION)" -o dist/kanban-md .
 
 .PHONY: lint
 lint: ## golangci-lint
