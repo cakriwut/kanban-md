@@ -14,6 +14,15 @@ Detailed description of the changes, that can be multiline, but do not artificia
 
 - Whenever any research is done (including by the subagents), it should be documented as a report in docs/research/YYYY-MM-DD-<description>.md. In case of subagents, the need to be instructed to create the report file and on completion return only the path to the report, so that the main agent can read and analyze it.
 
+## Releasing
+
+To release a new version, tag and push. The release workflow triggers automatically on tag push — do NOT also run `gh workflow run release`, as that causes a duplicate build.
+
+```
+git tag vX.Y.Z
+git push origin main --tags
+```
+
 ## Backward Compatibility
 
 When modifying `config.yml` schema or task file frontmatter, you must ensure backward compatibility:
