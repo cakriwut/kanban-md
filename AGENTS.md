@@ -108,6 +108,52 @@ Three formats are available:
 
 This is a deliberate design decision. Do not revert to TTY auto-detection without understanding the agent token cost implications. See `docs/research/2026-02-08-token-efficient-output-formats.md` for the research behind this choice.
 
+## Fixing Bugs (Test-Driven Development)
+
+When fixing bugs, use test-driven development: write a failing test that reproduces the bug first, then implement the fix.
+
+### Process
+
+1. **Read the bug description** and identify which package is affected (CLI command or TUI).
+2. **Study existing test patterns** in the relevant package to match style and helpers.
+3. **Write a failing test** that reproduces the exact bug behavior. Run it to confirm it fails.
+4. **Implement the fix** in the production code.
+5. **Run the failing test** to confirm it now passes.
+6. **Run the full test suite** to check for regressions.
+7. **Run lint** (`golangci-lint run ./...`) and fix any issues.
+8. **Update golden files** if snapshot tests are affected (`go test ./... -run TestSnapshot -update`).
+
+### Where to look for test patterns
+
+**CLI bugs** (`cmd/` package):
+- Unit tests: `cmd/*_test.go` — test individual command logic
+- E2E tests: `e2e/cli_test.go` — run the compiled binary with `runKanban(t, ...)` helper
+- Test helpers: `runKanban`, `runKanbanEnv`, `setupProject` in `e2e/cli_test.go`
+
+**TUI bugs** (`internal/tui/` package):
+- Behavioral tests: `internal/tui/board_test.go` — simulate keypresses and check View() output
+- Snapshot tests: `internal/tui/snapshot_test.go` — compare View() output against golden files in `testdata/`
+- Test helpers:
+  - `setupTestBoard(t)` — creates a temp board with 4 tasks across statuses, 120x40 terminal
+  - `setupManyTasksBoard(t)` — creates 18 tasks for scroll testing, 100x30 terminal
+  - `sendKey(b, "j")` — simulates a keypress and returns the updated Board
+  - `sendSpecialKey(b, tea.KeyEsc)` — simulates special keys (esc, enter, etc.)
+  - `assertGolden(t, "name", output)` — compares against `testdata/name.golden`
+  - `containsStr(haystack, needle)` — substring check without ANSI codes
+  - `addLongBodyToTask(t, cfg, taskID, lineCount)` — modifies a task to have a multi-line body
+
+**Internal packages** (`internal/output/`, `internal/task/`, etc.):
+- Each package has `*_test.go` files with table-driven tests
+- Use `strings.Builder` for testing output renderers
+- Use `t.TempDir()` for file system tests
+
+### Tips
+
+- For TUI bugs, the key insight is that `View()` returns the raw string — check line counts, substring presence, and line widths to verify correct behavior.
+- For bugs that only manifest at specific terminal sizes, use `b.Update(tea.WindowSizeMsg{Width: W, Height: H})` to set the size.
+- When a fix changes golden file output, update them with `-update` flag: `go test ./internal/tui/ -run TestSnapshot -update`.
+- Verify golden file contents look correct after updating — don't blindly accept changes.
+
 ## Using the Kanban Board
 
 This project uses its own kanban board (in `kanban/`) to track work. Use the CLI to manage tasks as you work.
