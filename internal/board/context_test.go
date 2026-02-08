@@ -47,15 +47,15 @@ func TestGenerateContextWithTasks(t *testing.T) {
 	}
 
 	const wantTotal = 5
-	const wantInProgress = 4
+	const wantActive = 4
 
 	data := GenerateContext(cfg, tasks, ContextOptions{Days: defaultDays})
 
 	if data.Summary.TotalTasks != wantTotal {
 		t.Errorf("TotalTasks = %d, want %d", data.Summary.TotalTasks, wantTotal)
 	}
-	if data.Summary.InProgress != wantInProgress {
-		t.Errorf("InProgress = %d, want %d", data.Summary.InProgress, wantInProgress)
+	if data.Summary.Active != wantActive {
+		t.Errorf("Active = %d, want %d", data.Summary.Active, wantActive)
 	}
 	if data.Summary.Blocked != 1 {
 		t.Errorf("Blocked = %d, want 1", data.Summary.Blocked)
@@ -105,7 +105,7 @@ func TestRenderContextMarkdown(t *testing.T) {
 		BoardName: "My Project",
 		Summary: ContextSummary{
 			TotalTasks: totalTasks,
-			InProgress: 1,
+			Active:     1,
 			Blocked:    1,
 			Overdue:    0,
 		},
@@ -141,6 +141,72 @@ func TestRenderContextMarkdown(t *testing.T) {
 	}
 	if !strings.Contains(md, "@alice") {
 		t.Error("missing assignee")
+	}
+}
+
+func TestComputeSummaryCustomStatuses(t *testing.T) {
+	cfg := &config.Config{
+		Board:      config.BoardConfig{Name: "Custom"},
+		Statuses:   []string{"new", "accepted", "active", "done"},
+		Priorities: []string{"low", "medium", "high"},
+	}
+	now := time.Now()
+
+	tasks := []*task.Task{
+		{ID: 1, Title: "Backlog task", Status: "new", Priority: "medium", Created: now, Updated: now},
+		{ID: 2, Title: "Accepted task", Status: "accepted", Priority: "high", Created: now, Updated: now},
+		{ID: 3, Title: "Active task", Status: "active", Priority: "high", Created: now, Updated: now},
+		{ID: 4, Title: "Done task", Status: "done", Priority: "medium", Created: now, Updated: now},
+	}
+
+	data := GenerateContext(cfg, tasks, ContextOptions{})
+
+	// "accepted" and "active" are non-first, non-terminal -> 2 active tasks.
+	const wantActive = 2
+	if data.Summary.Active != wantActive {
+		t.Errorf("Active = %d, want %d", data.Summary.Active, wantActive)
+	}
+}
+
+func TestReadySectionUsesSecondStatus(t *testing.T) {
+	cfg := &config.Config{
+		Board:      config.BoardConfig{Name: "Custom"},
+		Statuses:   []string{"new", "accepted", "active", "done"},
+		Priorities: []string{"low", "medium", "high"},
+	}
+	now := time.Now()
+
+	tasks := []*task.Task{
+		{ID: 1, Title: "Accepted task", Status: "accepted", Priority: "high", Created: now, Updated: now},
+		{ID: 2, Title: "Active task", Status: "active", Priority: "medium", Created: now, Updated: now},
+	}
+
+	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionReady}})
+
+	if len(data.Sections) != 1 {
+		t.Fatalf("Sections = %d, want 1", len(data.Sections))
+	}
+	if len(data.Sections[0].Items) != 1 {
+		t.Fatalf("Ready items = %d, want 1", len(data.Sections[0].Items))
+	}
+	if data.Sections[0].Items[0].ID != 1 {
+		t.Errorf("Ready item ID = %d, want 1 (the 'accepted' task)", data.Sections[0].Items[0].ID)
+	}
+}
+
+func TestContextMarkdownShowsActive(t *testing.T) {
+	data := ContextData{
+		BoardName: "Test",
+		Summary: ContextSummary{
+			TotalTasks: 2,
+			Active:     1,
+			Blocked:    0,
+			Overdue:    0,
+		},
+	}
+	md := RenderContextMarkdown(data)
+	if !strings.Contains(md, "1 active") {
+		t.Errorf("markdown should say 'active', not 'in progress':\n%s", md)
 	}
 }
 

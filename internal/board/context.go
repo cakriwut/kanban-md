@@ -34,7 +34,7 @@ type ContextData struct {
 // ContextSummary holds aggregate board statistics.
 type ContextSummary struct {
 	TotalTasks int    `json:"total_tasks"`
-	InProgress int    `json:"in_progress"`
+	Active     int    `json:"active"`
 	Blocked    int    `json:"blocked"`
 	Overdue    int    `json:"overdue"`
 	WIPWarning string `json:"wip_warning,omitempty"`
@@ -108,10 +108,11 @@ func GenerateContext(cfg *config.Config, tasks []*task.Task, opts ContextOptions
 }
 
 func computeSummary(cfg *config.Config, tasks []*task.Task, now time.Time) ContextSummary {
-	var inProgress, blocked, overdue int
+	var active, blocked, overdue int
 	for _, t := range tasks {
+		// Active = not in first status (backlog) and not in terminal status (done).
 		if !isFirstStatus(cfg, t.Status) && !cfg.IsTerminalStatus(t.Status) {
-			inProgress++
+			active++
 		}
 		if t.Blocked {
 			blocked++
@@ -123,7 +124,7 @@ func computeSummary(cfg *config.Config, tasks []*task.Task, now time.Time) Conte
 
 	summary := ContextSummary{
 		TotalTasks: len(tasks),
-		InProgress: inProgress,
+		Active:     active,
 		Blocked:    blocked,
 		Overdue:    overdue,
 	}
@@ -254,8 +255,8 @@ func RenderContextMarkdown(data ContextData) string {
 	b.WriteString("\n\n")
 
 	// Summary.
-	b.WriteString(fmt.Sprintf("**%d tasks** | %d in progress | %d blocked | %d overdue\n",
-		data.Summary.TotalTasks, data.Summary.InProgress,
+	b.WriteString(fmt.Sprintf("**%d tasks** | %d active | %d blocked | %d overdue\n",
+		data.Summary.TotalTasks, data.Summary.Active,
 		data.Summary.Blocked, data.Summary.Overdue))
 	if data.Summary.WIPWarning != "" {
 		b.WriteString("\n> ")

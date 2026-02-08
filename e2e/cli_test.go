@@ -2301,7 +2301,7 @@ func TestContextWithTasks(t *testing.T) {
 	var ctx struct {
 		Summary struct {
 			TotalTasks int `json:"total_tasks"`
-			InProgress int `json:"in_progress"`
+			Active     int `json:"active"`
 			Blocked    int `json:"blocked"`
 		} `json:"summary"`
 		Sections []struct {
@@ -2316,8 +2316,8 @@ func TestContextWithTasks(t *testing.T) {
 	if ctx.Summary.TotalTasks != 2 {
 		t.Errorf("TotalTasks = %d, want 2", ctx.Summary.TotalTasks)
 	}
-	if ctx.Summary.InProgress < 1 {
-		t.Errorf("InProgress = %d, want >= 1", ctx.Summary.InProgress)
+	if ctx.Summary.Active < 1 {
+		t.Errorf("Active = %d, want >= 1", ctx.Summary.Active)
 	}
 	if ctx.Summary.Blocked != 1 {
 		t.Errorf("Blocked = %d, want 1", ctx.Summary.Blocked)
