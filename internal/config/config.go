@@ -51,9 +51,17 @@ type DefaultsConfig struct {
 	Class    string `yaml:"class,omitempty"`
 }
 
+// AgeThreshold maps a duration threshold to an ANSI color code.
+// Tasks older than the threshold (in their current status) render in this color.
+type AgeThreshold struct {
+	After string `yaml:"after" json:"after"` // duration string, e.g. "1h", "24h", "7d"
+	Color string `yaml:"color" json:"color"` // ANSI 256 color code, e.g. "34", "226", "196"
+}
+
 // TUIConfig holds TUI-specific display settings.
 type TUIConfig struct {
-	TitleLines int `yaml:"title_lines,omitempty"`
+	TitleLines    int            `yaml:"title_lines,omitempty"`
+	AgeThresholds []AgeThreshold `yaml:"age_thresholds,omitempty"`
 }
 
 // ClassConfig defines a class of service and its WIP rules.
@@ -88,7 +96,7 @@ func NewDefault(name string) *Config {
 		Priorities:   append([]string{}, DefaultPriorities...),
 		Classes:      append([]ClassConfig{}, DefaultClasses...),
 		ClaimTimeout: DefaultClaimTimeout,
-		TUI:          TUIConfig{TitleLines: DefaultTitleLines},
+		TUI:          TUIConfig{TitleLines: DefaultTitleLines, AgeThresholds: append([]AgeThreshold{}, DefaultAgeThresholds...)},
 		Defaults: DefaultsConfig{
 			Status:   DefaultStatus,
 			Priority: DefaultPriority,
@@ -200,7 +208,42 @@ func (c *Config) validateTUI() error {
 		return fmt.Errorf("%w: tui.title_lines must be between %d and %d",
 			ErrInvalid, DefaultTitleLines, maxTitleLines)
 	}
+	for i, at := range c.TUI.AgeThresholds {
+		if _, err := time.ParseDuration(at.After); err != nil {
+			return fmt.Errorf("%w: tui.age_thresholds[%d].after %q: %w", ErrInvalid, i, at.After, err)
+		}
+		if at.Color == "" {
+			return fmt.Errorf("%w: tui.age_thresholds[%d].color is required", ErrInvalid, i)
+		}
+	}
 	return nil
+}
+
+// AgeThresholdsDuration returns the age thresholds as parsed durations with color codes,
+// sorted by duration ascending. Returns DefaultAgeThresholds parsed if none are configured.
+func (c *Config) AgeThresholdsDuration() []struct {
+	After time.Duration
+	Color string
+} {
+	thresholds := c.TUI.AgeThresholds
+	if len(thresholds) == 0 {
+		thresholds = DefaultAgeThresholds
+	}
+	result := make([]struct {
+		After time.Duration
+		Color string
+	}, 0, len(thresholds))
+	for _, at := range thresholds {
+		d, err := time.ParseDuration(at.After)
+		if err != nil {
+			continue
+		}
+		result = append(result, struct {
+			After time.Duration
+			Color string
+		}{After: d, Color: at.Color})
+	}
+	return result
 }
 
 // WIPLimit returns the WIP limit for a status, or 0 (unlimited).

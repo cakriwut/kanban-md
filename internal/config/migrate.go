@@ -40,6 +40,7 @@ var migrations = map[int]func(*Config) error{
 	1: migrateV1ToV2,
 	2: migrateV2ToV3,
 	3: migrateV3ToV4,
+	4: migrateV4ToV5,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -69,5 +70,14 @@ func migrateV3ToV4(cfg *Config) error { //nolint:unparam // signature must match
 		cfg.TUI.TitleLines = DefaultTitleLines
 	}
 	cfg.Version = 4
+	return nil
+}
+
+// migrateV4ToV5 adds the tui.age_thresholds default.
+func migrateV4ToV5(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	if len(cfg.TUI.AgeThresholds) == 0 {
+		cfg.TUI.AgeThresholds = append([]AgeThreshold{}, DefaultAgeThresholds...)
+	}
+	cfg.Version = 5
 	return nil
 }

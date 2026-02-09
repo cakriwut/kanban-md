@@ -21,7 +21,7 @@ const (
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 4
+	CurrentVersion = 5
 )
 
 // Default slice values for a new board (slices cannot be const).
@@ -39,6 +39,17 @@ var (
 		"medium",
 		"high",
 		"critical",
+	}
+
+	// DefaultAgeThresholds defines the default progressive color thresholds
+	// for task duration display in the TUI. Tasks are colored based on how
+	// long they've been in their current status.
+	DefaultAgeThresholds = []AgeThreshold{
+		{After: "0s", Color: "242"},  // dim gray (fresh)
+		{After: "1h", Color: "34"},   // green
+		{After: "24h", Color: "226"}, // yellow
+		{After: "72h", Color: "208"}, // orange
+		{After: "168h", Color: "196"}, // red (1 week)
 	}
 
 	// DefaultClasses defines the default classes of service.

@@ -58,7 +58,7 @@ func TestMigrateV1ToCurrentVersion(t *testing.T) {
 	cfg.ClaimTimeout = ""
 	cfg.Classes = nil
 	cfg.Defaults.Class = ""
-	cfg.TUI = TUIConfig{}
+	cfg.TUI = TUIConfig{} // Clear all TUI fields including AgeThresholds.
 
 	if err := migrate(cfg); err != nil {
 		t.Fatalf("migrate() v1→current: %v", err)
@@ -107,5 +107,24 @@ func TestMigrateV3ToV4(t *testing.T) {
 	}
 	if cfg.TUI.TitleLines != DefaultTitleLines {
 		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+}
+
+func TestMigrateV4ToV5(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 4
+	cfg.TUI.AgeThresholds = nil // Clear to test migration sets default.
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v4→v5: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if len(cfg.TUI.AgeThresholds) != len(DefaultAgeThresholds) {
+		t.Fatalf("AgeThresholds len = %d, want %d", len(cfg.TUI.AgeThresholds), len(DefaultAgeThresholds))
+	}
+	if cfg.TUI.AgeThresholds[0].After != "0s" {
+		t.Errorf("AgeThresholds[0].After = %q, want %q", cfg.TUI.AgeThresholds[0].After, "0s")
 	}
 }

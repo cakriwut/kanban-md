@@ -129,6 +129,10 @@ func TestCompatV1ConfigMigratesToCurrentVersion(t *testing.T) {
 	if cfg.TUI.TitleLines != DefaultTitleLines {
 		t.Errorf("TUI.TitleLines = %d, want %d (from v3→v4 migration)", cfg.TUI.TitleLines, DefaultTitleLines)
 	}
+	// v4→v5 migration should also have run.
+	if len(cfg.TUI.AgeThresholds) != len(DefaultAgeThresholds) {
+		t.Errorf("AgeThresholds len = %d, want %d (from v4→v5 migration)", len(cfg.TUI.AgeThresholds), len(DefaultAgeThresholds))
+	}
 }
 
 func TestCompatV2Config(t *testing.T) {
@@ -288,6 +292,9 @@ func TestMigrationPersistsToDisk(t *testing.T) {
 	if raw.TUI.TitleLines != DefaultTitleLines {
 		t.Errorf("Persisted TUI.TitleLines = %d, want %d", raw.TUI.TitleLines, DefaultTitleLines)
 	}
+	if len(raw.TUI.AgeThresholds) != len(DefaultAgeThresholds) {
+		t.Errorf("Persisted AgeThresholds len = %d, want %d", len(raw.TUI.AgeThresholds), len(DefaultAgeThresholds))
+	}
 	const wantName = "Test Project"
 	if raw.Board.Name != wantName {
 		t.Errorf("Persisted Board.Name = %q, want %q", raw.Board.Name, wantName)
@@ -295,6 +302,56 @@ func TestMigrationPersistsToDisk(t *testing.T) {
 	const wantNextID = 4
 	if raw.NextID != wantNextID {
 		t.Errorf("Persisted NextID = %d, want %d", raw.NextID, wantNextID)
+	}
+}
+
+func TestCompatV4Config(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v4")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v4 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v4" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v4")
+	}
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+}
+
+func TestCompatV4ConfigMigratesToV5(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v4")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v4 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+	// v4→v5 migration should set default age thresholds.
+	if len(cfg.TUI.AgeThresholds) != len(DefaultAgeThresholds) {
+		t.Fatalf("AgeThresholds len = %d, want %d", len(cfg.TUI.AgeThresholds), len(DefaultAgeThresholds))
+	}
+	if cfg.TUI.AgeThresholds[0].After != "0s" {
+		t.Errorf("AgeThresholds[0].After = %q, want %q", cfg.TUI.AgeThresholds[0].After, "0s")
+	}
+	// Existing v4 fields should be preserved.
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+	if cfg.ClaimTimeout != "1h" {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, "1h")
 	}
 }
 

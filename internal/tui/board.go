@@ -570,6 +570,20 @@ var (
 			Padding(dialogPadY, dialogPadX)
 )
 
+// ageStyle returns a lipgloss style for the duration label based on the
+// configured age thresholds. Thresholds are walked in reverse order (longest
+// first) so the first match wins.
+func (b *Board) ageStyle(d time.Duration) lipgloss.Style {
+	thresholds := b.cfg.AgeThresholdsDuration()
+	// Walk backwards: pick the highest threshold that the duration exceeds.
+	for i := len(thresholds) - 1; i >= 0; i-- {
+		if d >= thresholds[i].After {
+			return lipgloss.NewStyle().Foreground(lipgloss.Color(thresholds[i].Color))
+		}
+	}
+	return dimStyle
+}
+
 // --- View rendering ---
 
 func (b *Board) viewBoard() string {
@@ -720,8 +734,9 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 		details = append(details, dimStyle.Render("due:"+t.Due.String()))
 	}
 
-	age := humanDuration(b.now().Sub(t.Updated))
-	details = append(details, dimStyle.Render(age))
+	ageDur := b.now().Sub(t.Updated)
+	age := humanDuration(ageDur)
+	details = append(details, b.ageStyle(ageDur).Render(age))
 
 	contentLines = append(contentLines, strings.Join(details, " "))
 
