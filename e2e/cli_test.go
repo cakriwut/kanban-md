@@ -3483,6 +3483,77 @@ func TestSkillUpdateAndCheck(t *testing.T) {
 	}
 }
 
+func TestSkillUpdateShowsPaths(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".claude"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Install skills for claude agent.
+	r := runKanbanNoDir(t, dir, "skill", "install", "--agent", "claude")
+	if r.exitCode != 0 {
+		t.Fatalf("install failed: %s", r.stderr)
+	}
+
+	// Tamper with kanban-md version to simulate outdated.
+	skillMD := filepath.Join(dir, ".claude", "skills", "kanban-md", "SKILL.md")
+	oldContent := "---\nname: kanban-md\n---\n<!-- kanban-md-skill-version: 0.0.1 -->\n# old content\n"
+	if err := os.WriteFile(skillMD, []byte(oldContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update — kanban-md should update, kanban-based-development should be skipped.
+	r = runKanbanNoDir(t, dir, "skill", "update", "--agent", "claude")
+	if r.exitCode != 0 {
+		t.Fatalf("update failed: %s", r.stderr)
+	}
+
+	// Updated skill should show file path (SKILL.md) and version transition.
+	if !strings.Contains(r.stdout, "SKILL.md") {
+		t.Errorf("expected file path in update output, got:\n%s", r.stdout)
+	}
+	if !strings.Contains(r.stdout, "0.0.1") {
+		t.Errorf("expected old version in update output, got:\n%s", r.stdout)
+	}
+
+	// Skipped skill should show file path and "(skipped)".
+	if !strings.Contains(r.stdout, "skipped") {
+		t.Errorf("expected skipped message for up-to-date skill, got:\n%s", r.stdout)
+	}
+
+	// Summary line.
+	if !strings.Contains(r.stdout, "Updated 1 skill") {
+		t.Errorf("expected 'Updated 1 skill' summary, got:\n%s", r.stdout)
+	}
+}
+
+func TestSkillUpdateAllUpToDate(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".claude"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Install skills.
+	r := runKanbanNoDir(t, dir, "skill", "install", "--agent", "claude")
+	if r.exitCode != 0 {
+		t.Fatalf("install failed: %s", r.stderr)
+	}
+
+	// Update with everything already current.
+	r = runKanbanNoDir(t, dir, "skill", "update", "--agent", "claude")
+	if r.exitCode != 0 {
+		t.Fatalf("update failed: %s", r.stderr)
+	}
+
+	// All should be skipped — output should show paths + "(skipped)" and the summary.
+	if !strings.Contains(r.stdout, "skipped") {
+		t.Errorf("expected skipped message for up-to-date skills, got:\n%s", r.stdout)
+	}
+	if !strings.Contains(r.stdout, "All skills are already up to date.") {
+		t.Errorf("expected 'All skills are already up to date.' summary, got:\n%s", r.stdout)
+	}
+}
+
 func TestInitShowsSkillHint(t *testing.T) {
 	kanbanDir := initBoard(t)
 	_ = kanbanDir

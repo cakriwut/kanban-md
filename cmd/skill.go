@@ -189,21 +189,26 @@ func runSkillUpdate(cmd *cobra.Command, _ []string) error {
 
 		installed := skill.FindInstalledSkills(baseDir)
 		for skillName, skillPath := range installed {
-			if skill.IsOutdated(skillPath, version) {
-				oldVer := skill.InstalledVersion(skillPath)
-				if err := skill.Install(skillName, baseDir, version); err != nil {
-					return fmt.Errorf("updating %s for %s: %w", skillName, agent.DisplayName, err)
-				}
-				output.Messagef(os.Stdout, "  %s/%s — updated (%s → %s)", agent.DisplayName, skillName, oldVer, version)
-				updated++
+			displayPath := relativePath(projectRoot, skillPath)
+
+			if !skill.IsOutdated(skillPath, version) {
+				output.Messagef(os.Stdout, "  %s — already at %s (skipped)", displayPath, version)
+				continue
 			}
+
+			oldVer := skill.InstalledVersion(skillPath)
+			if err := skill.Install(skillName, baseDir, version); err != nil {
+				return fmt.Errorf("updating %s for %s: %w", skillName, agent.DisplayName, err)
+			}
+			output.Messagef(os.Stdout, "  %s (%s → %s)", displayPath, oldVer, version)
+			updated++
 		}
 	}
 
 	if updated > 0 {
 		output.Messagef(os.Stdout, "Updated %d skill(s).", updated)
 	} else {
-		output.Messagef(os.Stdout, "All skills are up to date.")
+		output.Messagef(os.Stdout, "All skills are already up to date.")
 	}
 	return nil
 }
