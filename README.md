@@ -4,6 +4,7 @@
 [![Release](https://github.com/antopolskiy/kanban-md/actions/workflows/release.yml/badge.svg)](https://github.com/antopolskiy/kanban-md/actions/workflows/release.yml)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/antopolskiy/kanban-md)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/antopolskiy/kanban-md)](https://github.com/antopolskiy/kanban-md/releases/latest)
+[![codecov](https://codecov.io/gh/antopolskiy/kanban-md/graph/badge.svg)](https://codecov.io/gh/antopolskiy/kanban-md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A file-based Kanban tool powered by Markdown. Tasks are stored as individual `.md` files with YAML frontmatter, making them easy to read, edit, and version-control.
