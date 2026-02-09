@@ -1295,8 +1295,8 @@ func TestListUnblockedAfterDepDone(t *testing.T) {
 
 func TestListUnblockedWithMissingDependencyFile(t *testing.T) {
 	kanbanDir := initBoard(t)
-	dep := mustCreateTask(t, kanbanDir, "Dep task") // #1
-	mustCreateTask(t, kanbanDir, "Depends on missing", "--depends-on", "1") // #2
+	dep := mustCreateTask(t, kanbanDir, "Dep task")
+	mustCreateTask(t, kanbanDir, "Depends on missing", "--depends-on", "1")
 
 	// Simulate legacy hard-delete: dependency ID remains but file is gone.
 	if err := os.Remove(dep.File); err != nil {
