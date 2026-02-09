@@ -101,8 +101,10 @@ func TestResolveSkills_UnknownSkill(t *testing.T) {
 // --- relativePath tests ---
 
 func TestRelativePath_Simple(t *testing.T) {
-	got := relativePath("/home/user/project", "/home/user/project/skills/SKILL.md")
-	want := "skills/SKILL.md"
+	base := filepath.Join(string(filepath.Separator), "home", "user", "project")
+	target := filepath.Join(base, "skills", "SKILL.md")
+	got := relativePath(base, target)
+	want := filepath.Join("skills", "SKILL.md")
 	if got != want {
 		t.Errorf("relativePath = %q, want %q", got, want)
 	}

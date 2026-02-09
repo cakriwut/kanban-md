@@ -28,7 +28,7 @@ func TestTasksPath_CustomDir(t *testing.T) {
 	cfg.TasksDir = "cards"
 
 	got := cfg.TasksPath()
-	want := "/tmp/kanban/cards"
+	want := filepath.Join("/tmp/kanban", "cards")
 	if got != want {
 		t.Errorf("TasksPath() = %q, want %q", got, want)
 	}
