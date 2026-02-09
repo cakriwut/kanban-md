@@ -17,12 +17,37 @@ import (
 var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	// Status colors aligned with TUI column-header palette.
+	statusStyles = map[string]lipgloss.Style{
+		"backlog":     lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+		"todo":        lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
+		"in-progress": lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+		"review":      lipgloss.NewStyle().Foreground(lipgloss.Color("62")),
+		"done":        lipgloss.NewStyle().Foreground(lipgloss.Color("34")),
+		"archived":    lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
+	}
+
+	// Priority colors matching TUI priority palette.
+	priorityStyles = map[string]lipgloss.Style{
+		"critical": lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+		"high":     lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
+		"medium":   lipgloss.NewStyle().Foreground(lipgloss.Color("226")),
+		"low":      lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+	}
+
+	tagStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
+	claimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Bold(true)
 )
 
 // DisableColor strips all styling from table output.
 func DisableColor() {
 	headerStyle = lipgloss.NewStyle()
 	dimStyle = lipgloss.NewStyle()
+	statusStyles = map[string]lipgloss.Style{}
+	priorityStyles = map[string]lipgloss.Style{}
+	tagStyle = lipgloss.NewStyle()
+	claimStyle = lipgloss.NewStyle()
 }
 
 // TaskTable renders a list of tasks as a formatted table.
@@ -64,6 +89,8 @@ func TaskTable(w io.Writer, tasks []*task.Task) {
 		tags := strings.Join(t.Tags, ",")
 		if tags == "" {
 			tags = dimStyle.Render("--")
+		} else {
+			tags = tagStyle.Render(tags)
 		}
 		due := "--"
 		if t.Due != nil {
@@ -74,8 +101,8 @@ func TaskTable(w io.Writer, tasks []*task.Task) {
 
 		fmt.Fprintf(w, "%-*d %s %s %s %s %s %s\n",
 			idW, t.ID,
-			padRight(t.Status, statusW),
-			padRight(t.Priority, prioW),
+			padRight(styledValue(t.Status, statusStyles), statusW),
+			padRight(styledValue(t.Priority, priorityStyles), prioW),
 			padRight(title, titleW),
 			padRight(assignee, assignW),
 			padRight(tags, tagsW),
@@ -89,14 +116,14 @@ func TaskDetail(w io.Writer, t *task.Task) {
 	fmt.Fprintln(w, lipgloss.NewStyle().Bold(true).Render(titleLine))
 	fmt.Fprintln(w, strings.Repeat("─", len(titleLine)))
 
-	printField(w, "Status", t.Status)
-	printField(w, "Priority", t.Priority)
+	printField(w, "Status", styledValue(t.Status, statusStyles))
+	printField(w, "Priority", styledValue(t.Priority, priorityStyles))
 	if t.Class != "" {
 		printField(w, "Class", t.Class)
 	}
 	printField(w, "Assignee", stringOrDash(t.Assignee))
 	if len(t.Tags) > 0 {
-		printField(w, "Tags", strings.Join(t.Tags, ", "))
+		printField(w, "Tags", tagStyle.Render(strings.Join(t.Tags, ", ")))
 	} else {
 		printField(w, "Tags", dimStyle.Render("--"))
 	}
@@ -120,7 +147,7 @@ func TaskDetail(w io.Writer, t *task.Task) {
 	}
 
 	if t.ClaimedBy != "" {
-		claimStr := t.ClaimedBy
+		claimStr := claimStyle.Render(t.ClaimedBy)
 		if t.ClaimedAt != nil {
 			claimStr += " (since " + t.ClaimedAt.Format("2006-01-02 15:04") + ")"
 		}
@@ -146,8 +173,10 @@ func OverviewTable(w io.Writer, s board.Overview) {
 		if ss.WIPLimit > 0 {
 			wip = strconv.Itoa(ss.Count) + "/" + strconv.Itoa(ss.WIPLimit)
 		}
-		fmt.Fprintf(w, "%-16s %6d %s %8d %8d\n",
-			ss.Status, ss.Count, padRight(wip, 8), ss.Blocked, ss.Overdue) //nolint:mnd // column width
+		const statusColW = 16
+		fmt.Fprintf(w, "%s %6d %s %8d %8d\n",
+			padRight(styledValue(ss.Status, statusStyles), statusColW),
+			ss.Count, padRight(wip, 8), ss.Blocked, ss.Overdue) //nolint:mnd // column width
 	}
 
 	fmt.Fprintln(w)
@@ -155,7 +184,9 @@ func OverviewTable(w io.Writer, s board.Overview) {
 	fmt.Fprintln(w, headerStyle.Render(prioHeader))
 
 	for _, pc := range s.Priorities {
-		fmt.Fprintf(w, "%-16s %6d\n", pc.Priority, pc.Count)
+		const prioColW = 16
+		fmt.Fprintf(w, "%s %6d\n",
+			padRight(styledValue(pc.Priority, priorityStyles), prioColW), pc.Count)
 	}
 
 	if len(s.Classes) > 0 {
@@ -189,8 +220,10 @@ func MetricsTable(w io.Writer, m board.Metrics) {
 			if len(title) > maxTitle {
 				title = title[:maxTitle-3] + "..."
 			}
-			fmt.Fprintf(w, "%-6d %-16s %-40s %10s\n",
-				a.ID, a.Status, title, FormatDuration(time.Duration(a.AgeHours*float64(time.Hour))))
+			const agingStatusW = 16
+			fmt.Fprintf(w, "%-6d %s %-40s %10s\n",
+				a.ID, padRight(styledValue(a.Status, statusStyles), agingStatusW),
+				title, FormatDuration(time.Duration(a.AgeHours*float64(time.Hour))))
 		}
 	}
 }
@@ -245,7 +278,9 @@ func GroupedTable(w io.Writer, gs board.GroupedSummary) {
 			if ss.Count == 0 {
 				continue
 			}
-			fmt.Fprintf(w, "  %-16s %d\n", ss.Status, ss.Count)
+			const groupStatusW = 16
+			fmt.Fprintf(w, "  %s %d\n",
+				padRight(styledValue(ss.Status, statusStyles), groupStatusW), ss.Count)
 		}
 	}
 }
@@ -284,6 +319,14 @@ func padRight(s string, width int) string {
 func stringOrDash(s string) string {
 	if s == "" {
 		return dimStyle.Render("--")
+	}
+	return s
+}
+
+// styledValue renders s using a matching style from the map, or returns s unchanged.
+func styledValue(s string, styles map[string]lipgloss.Style) string {
+	if st, ok := styles[s]; ok {
+		return st.Render(s)
 	}
 	return s
 }
