@@ -675,7 +675,7 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 
 func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
-	status := fmt.Sprintf(" %s | %d tasks | hjkl:navigate enter:detail m:move M:next d:delete ?:help esc/q:quit",
+	status := fmt.Sprintf(" %s | %d tasks | ←↓↑→/hjkl:navigate enter:detail m:move M:next d:delete ?:help esc/q:quit",
 		b.cfg.Board.Name, total)
 	status = truncate(status, b.width)
 

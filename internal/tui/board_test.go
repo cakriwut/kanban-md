@@ -292,6 +292,19 @@ func TestBoard_StatusBarShowsEsc(t *testing.T) {
 	}
 }
 
+func TestBoard_StatusBarShowsArrowKeys(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	v := b.View()
+
+	// Status bar should show arrow key indicators alongside vim keys.
+	for _, arrow := range []string{"←", "↓", "↑", "→"} {
+		if !containsStr(v, arrow) {
+			t.Errorf("expected status bar to contain %s arrow indicator", arrow)
+		}
+	}
+}
+
 func TestBoard_HelpView(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
