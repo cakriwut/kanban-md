@@ -79,8 +79,7 @@ func allSectionNames() []string {
 const defaultDays = 7
 
 // GenerateContext builds context data from config and tasks.
-func GenerateContext(cfg *config.Config, tasks []*task.Task, opts ContextOptions) ContextData {
-	now := time.Now()
+func GenerateContext(cfg *config.Config, tasks []*task.Task, opts ContextOptions, now time.Time) ContextData {
 	days := opts.Days
 	if days <= 0 {
 		days = defaultDays

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -78,7 +79,7 @@ func renderBoard(cfg *config.Config, groupBy string) error {
 		return renderGroupedBoard(cfg, tasks, groupBy)
 	}
 
-	summary := board.Summary(cfg, tasks)
+	summary := board.Summary(cfg, tasks, time.Now())
 
 	format := outputFormat()
 	if format == output.FormatJSON {

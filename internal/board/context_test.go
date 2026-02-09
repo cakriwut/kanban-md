@@ -18,7 +18,7 @@ func newTestConfig() *config.Config {
 
 func TestGenerateContextEmpty(t *testing.T) {
 	cfg := newTestConfig()
-	data := GenerateContext(cfg, nil, ContextOptions{})
+	data := GenerateContext(cfg, nil, ContextOptions{}, time.Now())
 
 	if data.BoardName != "Test Board" {
 		t.Errorf("BoardName = %q, want %q", data.BoardName, "Test Board")
@@ -49,7 +49,7 @@ func TestGenerateContextWithTasks(t *testing.T) {
 	const wantTotal = 5
 	const wantActive = 4
 
-	data := GenerateContext(cfg, tasks, ContextOptions{Days: defaultDays})
+	data := GenerateContext(cfg, tasks, ContextOptions{Days: defaultDays}, now)
 
 	if data.Summary.TotalTasks != wantTotal {
 		t.Errorf("TotalTasks = %d, want %d", data.Summary.TotalTasks, wantTotal)
@@ -89,7 +89,7 @@ func TestGenerateContextSectionFilter(t *testing.T) {
 		{ID: 2, Title: "Stuck", Status: "todo", Priority: "medium", Blocked: true, BlockReason: "dep", Created: now, Updated: now},
 	}
 
-	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionBlocked}})
+	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionBlocked}}, now)
 	if len(data.Sections) != 1 {
 		t.Fatalf("Sections = %d, want 1", len(data.Sections))
 	}
@@ -159,7 +159,7 @@ func TestComputeSummaryCustomStatuses(t *testing.T) {
 		{ID: 4, Title: "Done task", Status: "done", Priority: "medium", Created: now, Updated: now},
 	}
 
-	data := GenerateContext(cfg, tasks, ContextOptions{})
+	data := GenerateContext(cfg, tasks, ContextOptions{}, now)
 
 	// "accepted" and "active" are non-first, non-terminal -> 2 active tasks.
 	const wantActive = 2
@@ -181,7 +181,7 @@ func TestReadySectionUsesSecondStatus(t *testing.T) {
 		{ID: 2, Title: "Active task", Status: "active", Priority: "medium", Created: now, Updated: now},
 	}
 
-	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionReady}})
+	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionReady}}, now)
 
 	if len(data.Sections) != 1 {
 		t.Fatalf("Sections = %d, want 1", len(data.Sections))

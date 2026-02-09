@@ -2,6 +2,7 @@ package board
 
 import (
 	"testing"
+	"time"
 
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/date"
@@ -10,7 +11,7 @@ import (
 
 func TestSummaryEmptyBoard(t *testing.T) {
 	cfg := config.NewDefault("Test Board")
-	s := Summary(cfg, nil)
+	s := Summary(cfg, nil, time.Now())
 
 	if s.BoardName != "Test Board" {
 		t.Errorf("BoardName = %q, want %q", s.BoardName, "Test Board")
@@ -37,7 +38,7 @@ func TestSummaryCountsByStatus(t *testing.T) {
 		{ID: 4, Status: "done", Priority: "low"},
 	}
 
-	s := Summary(cfg, tasks)
+	s := Summary(cfg, tasks, time.Now())
 
 	if s.TotalTasks != 4 {
 		t.Errorf("TotalTasks = %d, want 4", s.TotalTasks)
@@ -62,7 +63,7 @@ func TestSummaryWIPLimits(t *testing.T) {
 	cfg := config.NewDefault("Test Board")
 	cfg.WIPLimits = map[string]int{"in-progress": 3}
 
-	s := Summary(cfg, nil)
+	s := Summary(cfg, nil, time.Now())
 
 	for _, ss := range s.Statuses {
 		if ss.Status == "in-progress" && ss.WIPLimit != 3 {
@@ -79,7 +80,7 @@ func TestSummaryBlockedCounts(t *testing.T) {
 		{ID: 3, Status: "todo", Priority: "medium", Blocked: true, BlockReason: "deps"},
 	}
 
-	s := Summary(cfg, tasks)
+	s := Summary(cfg, tasks, time.Now())
 
 	statusBlocked := make(map[string]int)
 	for _, ss := range s.Statuses {
@@ -106,7 +107,7 @@ func TestSummaryOverdueCounts(t *testing.T) {
 		{ID: 5, Status: "backlog", Priority: "medium"},                    // no due date
 	}
 
-	s := Summary(cfg, tasks)
+	s := Summary(cfg, tasks, time.Now())
 
 	totalOverdue := 0
 	for _, ss := range s.Statuses {
@@ -125,7 +126,7 @@ func TestSummaryTerminalNotOverdue(t *testing.T) {
 		{ID: 1, Status: "done", Priority: "medium", Due: &pastDue},
 	}
 
-	s := Summary(cfg, tasks)
+	s := Summary(cfg, tasks, time.Now())
 
 	for _, ss := range s.Statuses {
 		if ss.Status == "done" && ss.Overdue != 0 {
@@ -143,7 +144,7 @@ func TestSummaryPriorityDistribution(t *testing.T) {
 		{ID: 4, Status: "done", Priority: "low"},
 	}
 
-	s := Summary(cfg, tasks)
+	s := Summary(cfg, tasks, time.Now())
 
 	prioMap := make(map[string]int)
 	for _, pc := range s.Priorities {
@@ -162,7 +163,7 @@ func TestSummaryPriorityDistribution(t *testing.T) {
 
 func TestSummaryStatusOrder(t *testing.T) {
 	cfg := config.NewDefault("Test Board")
-	s := Summary(cfg, nil)
+	s := Summary(cfg, nil, time.Now())
 
 	for i, ss := range s.Statuses {
 		if ss.Status != cfg.Statuses[i] {

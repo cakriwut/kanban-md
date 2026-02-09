@@ -99,9 +99,7 @@ type Overview struct {
 }
 
 // Summary computes a board summary from all tasks.
-func Summary(cfg *config.Config, tasks []*task.Task) Overview {
-	now := time.Now()
-
+func Summary(cfg *config.Config, tasks []*task.Task, now time.Time) Overview {
 	statusMap := make(map[string]*StatusSummary, len(cfg.Statuses))
 	for _, s := range cfg.Statuses {
 		statusMap[s] = &StatusSummary{

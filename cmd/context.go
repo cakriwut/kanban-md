@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -52,7 +53,7 @@ func runContext(cmd *cobra.Command, _ []string) error {
 		Days:     days,
 	}
 
-	data := board.GenerateContext(cfg, tasks, opts)
+	data := board.GenerateContext(cfg, tasks, opts, time.Now())
 
 	writeTo, _ := cmd.Flags().GetString("write-to")
 	if writeTo != "" {
