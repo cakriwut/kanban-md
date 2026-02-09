@@ -405,6 +405,8 @@ kanban-md context --days 14                   # recently completed lookback
 | `--sections` | all | Comma-separated section filter |
 | `--days` | 7 | Recently completed lookback in days |
 
+Available section names: `in-progress`, `blocked`, `overdue`, `recently-completed`.
+
 When using `--write-to`, the context block is wrapped in HTML comment markers (`<!-- BEGIN kanban-md context -->` / `<!-- END kanban-md context -->`). If the file already contains these markers, only the block between them is replaced — all other content is preserved.
 
 ## Interactive TUI

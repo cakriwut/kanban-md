@@ -266,7 +266,6 @@ func TestSectionTitle(t *testing.T) {
 	}{
 		{sectionInProgress, "In Progress"},
 		{sectionBlocked, "Blocked"},
-		{sectionReady, "Ready to Start"},
 		{sectionOverdue, "Overdue"},
 		{sectionRecentlyCompleted, "Recently Completed"},
 		{"custom-section", "custom-section"},

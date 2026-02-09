@@ -64,7 +64,7 @@ func TestGenerateContextWithTasks(t *testing.T) {
 		t.Errorf("Overdue = %d, want 1", data.Summary.Overdue)
 	}
 
-	// Should have sections for in-progress, blocked, ready, overdue, recently-completed.
+	// Should have sections for in-progress, blocked, overdue, recently-completed.
 	if len(data.Sections) == 0 {
 		t.Fatal("expected non-empty sections")
 	}
@@ -73,7 +73,7 @@ func TestGenerateContextWithTasks(t *testing.T) {
 	for _, s := range data.Sections {
 		sectionNames[s.Name] = true
 	}
-	for _, want := range []string{sectionInProgress, sectionBlocked, sectionReady, sectionOverdue, sectionRecentlyCompleted} {
+	for _, want := range []string{sectionInProgress, sectionBlocked, sectionOverdue, sectionRecentlyCompleted} {
 		if !sectionNames[want] {
 			t.Errorf("missing section %q", want)
 		}
@@ -170,7 +170,7 @@ func TestComputeSummaryCustomStatuses(t *testing.T) {
 	}
 }
 
-func TestReadySectionUsesSecondStatus(t *testing.T) {
+func TestReadySectionFilterIsIgnored(t *testing.T) {
 	cfg := &config.Config{
 		Board: config.BoardConfig{Name: "Custom"},
 		Statuses: []config.StatusConfig{
@@ -185,16 +185,10 @@ func TestReadySectionUsesSecondStatus(t *testing.T) {
 		{ID: 2, Title: "Active task", Status: "active", Priority: "medium", Created: now, Updated: now},
 	}
 
-	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{sectionReady}}, now)
+	data := GenerateContext(cfg, tasks, ContextOptions{Sections: []string{"ready"}}, now)
 
-	if len(data.Sections) != 1 {
-		t.Fatalf("Sections = %d, want 1", len(data.Sections))
-	}
-	if len(data.Sections[0].Items) != 1 {
-		t.Fatalf("Ready items = %d, want 1", len(data.Sections[0].Items))
-	}
-	if data.Sections[0].Items[0].ID != 1 {
-		t.Errorf("Ready item ID = %d, want 1 (the 'accepted' task)", data.Sections[0].Items[0].ID)
+	if len(data.Sections) != 0 {
+		t.Fatalf("Sections = %d, want 0", len(data.Sections))
 	}
 }
 

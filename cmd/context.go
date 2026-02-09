@@ -28,7 +28,7 @@ block is replaced — other content is preserved.`,
 
 func init() {
 	contextCmd.Flags().String("write-to", "", "write context to file (create or update in-place)")
-	contextCmd.Flags().StringSlice("sections", nil, "comma-separated section filter (in-progress,blocked,ready,overdue,recently-completed)")
+	contextCmd.Flags().StringSlice("sections", nil, "comma-separated section filter (in-progress,blocked,overdue,recently-completed)")
 	contextCmd.Flags().Int("days", defaultContextDays, "recently completed lookback in days")
 	rootCmd.AddCommand(contextCmd)
 }

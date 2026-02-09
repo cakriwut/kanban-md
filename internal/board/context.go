@@ -60,7 +60,6 @@ type ContextItem struct {
 const (
 	sectionInProgress        = "in-progress"
 	sectionBlocked           = "blocked"
-	sectionReady             = "ready"
 	sectionOverdue           = "overdue"
 	sectionRecentlyCompleted = "recently-completed"
 )
@@ -70,7 +69,6 @@ func allSectionNames() []string {
 	return []string{
 		sectionInProgress,
 		sectionBlocked,
-		sectionReady,
 		sectionOverdue,
 		sectionRecentlyCompleted,
 	}
@@ -151,8 +149,6 @@ func buildSection(cfg *config.Config, tasks []*task.Task, name string, now time.
 		return buildInProgressSection(cfg, tasks)
 	case sectionBlocked:
 		return buildBlockedSection(cfg, tasks)
-	case sectionReady:
-		return buildReadySection(cfg, tasks)
 	case sectionOverdue:
 		return buildOverdueSection(cfg, tasks, now)
 	case sectionRecentlyCompleted:
@@ -180,24 +176,6 @@ func buildBlockedSection(_ *config.Config, tasks []*task.Task) []ContextItem {
 			items = append(items, taskToItem(t, t.BlockReason))
 		}
 	}
-	return items
-}
-
-func buildReadySection(cfg *config.Config, tasks []*task.Task) []ContextItem {
-	names := cfg.StatusNames()
-	if len(names) < 2 { //nolint:mnd // need at least 2 statuses for a ready column
-		return nil
-	}
-	readyStatus := names[1]
-	unblockedTasks := FilterUnblocked(tasks, cfg)
-
-	var items []ContextItem
-	for _, t := range unblockedTasks {
-		if t.Status == readyStatus && !t.Blocked {
-			items = append(items, taskToItem(t, ""))
-		}
-	}
-	sortByPriority(items, cfg)
 	return items
 }
 
@@ -297,8 +275,6 @@ func sectionTitle(name string) string {
 		return "In Progress"
 	case sectionBlocked:
 		return "Blocked"
-	case sectionReady:
-		return "Ready to Start"
 	case sectionOverdue:
 		return "Overdue"
 	case sectionRecentlyCompleted:

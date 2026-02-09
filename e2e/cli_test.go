@@ -2495,6 +2495,23 @@ func TestContextSectionsFilter(t *testing.T) {
 	}
 }
 
+func TestContextSectionsReadyIsIgnored(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Accepted-ish task")
+	runKanban(t, kanbanDir, "--json", "move", "1", "todo")
+
+	var ctx struct {
+		Sections []struct {
+			Name string `json:"name"`
+		} `json:"sections"`
+	}
+	runKanbanJSON(t, kanbanDir, &ctx, "context", "--sections", "ready")
+
+	if len(ctx.Sections) != 0 {
+		t.Fatalf("Sections = %d, want 0", len(ctx.Sections))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Batch operations tests
 // ---------------------------------------------------------------------------
