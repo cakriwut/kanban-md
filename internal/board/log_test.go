@@ -216,6 +216,46 @@ func TestReadLogCombinedFilters(t *testing.T) {
 	}
 }
 
+func TestAppendLogTruncatesWhenOverLimit(t *testing.T) {
+	dir := t.TempDir()
+
+	// Append maxLogEntries + 10 entries.
+	total := maxLogEntries + 10
+	for i := 1; i <= total; i++ {
+		entry := LogEntry{
+			Timestamp: time.Date(2025, 6, 15, 0, 0, i, 0, time.UTC),
+			Action:    "create",
+			TaskID:    i,
+			Detail:    "task",
+		}
+		if err := AppendLog(dir, entry); err != nil {
+			t.Fatalf("AppendLog entry %d: %v", i, err)
+		}
+	}
+
+	// Read back all entries (no filter).
+	entries, err := ReadLog(dir, LogFilterOptions{})
+	if err != nil {
+		t.Fatalf("ReadLog: %v", err)
+	}
+
+	// Should have at most maxLogEntries entries.
+	if len(entries) > maxLogEntries {
+		t.Errorf("got %d entries, want at most %d", len(entries), maxLogEntries)
+	}
+
+	// The oldest entries should have been truncated, so the first entry
+	// should be one of the later task IDs (not task 1).
+	if len(entries) > 0 && entries[0].TaskID <= 10 {
+		t.Errorf("first entry TaskID = %d, expected > 10 (oldest should be truncated)", entries[0].TaskID)
+	}
+
+	// The newest entry should be the last one appended.
+	if len(entries) > 0 && entries[len(entries)-1].TaskID != total {
+		t.Errorf("last entry TaskID = %d, want %d", entries[len(entries)-1].TaskID, total)
+	}
+}
+
 func mustAppend(t *testing.T, dir string, entry LogEntry) {
 	t.Helper()
 	if err := AppendLog(dir, entry); err != nil {
