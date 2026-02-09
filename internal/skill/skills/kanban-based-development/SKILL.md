@@ -178,6 +178,18 @@ git push origin main --tags
 
 Then write release notes per the project guidelines (see CLAUDE.md / AGENTS.md).
 
+## Autonomy
+
+Unless the user explicitly asks to be consulted, operate autonomously. Pick a task, implement it, merge it, and immediately pick the next one. Continue this loop until no available tasks remain.
+
+**Do not stop to ask the user** for routine decisions — choosing which task to pick, how to implement a straightforward feature, or whether to proceed after a successful merge. Just keep going.
+
+**Stop and ask only when:**
+- A task description is genuinely ambiguous and could lead to wasted work
+- A merge conflict requires a judgment call about which changes to keep
+- An external action is needed (e.g. pushing to remote, creating a release, deploying)
+- Tests or lint fail repeatedly and you cannot resolve the issue
+
 ## Rules
 
 ### Claiming (most important — prevents duplicate work)
