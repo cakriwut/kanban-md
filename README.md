@@ -9,7 +9,7 @@
 
 An agents-first file-based Kanban. Built for multi-agent workflows to allow AI agents work in parallel without clashing. Ultra-fast single binary CLI. Agent skills included. Lean and future-proof: no database, no server, no SaaS — just files.
 
-![Demo](assets/demo.gif)
+![Demo](assets/demo.png)
 
 ## Why kanban-md?
 
