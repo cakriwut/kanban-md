@@ -13,12 +13,35 @@ import (
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
-func TestTaskTableWritesToWriter(t *testing.T) {
+// disableColorForTest calls DisableColor and registers a cleanup that
+// restores all package-level styles to their default values.
+func disableColorForTest(t *testing.T) {
+	t.Helper()
 	DisableColor()
 	t.Cleanup(func() {
 		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
 		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+		statusStyles = map[string]lipgloss.Style{
+			"backlog":     lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+			"todo":        lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
+			"in-progress": lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+			"review":      lipgloss.NewStyle().Foreground(lipgloss.Color("62")),
+			"done":        lipgloss.NewStyle().Foreground(lipgloss.Color("34")),
+			"archived":    lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
+		}
+		priorityStyles = map[string]lipgloss.Style{
+			"critical": lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+			"high":     lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
+			"medium":   lipgloss.NewStyle().Foreground(lipgloss.Color("226")),
+			"low":      lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+		}
+		tagStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
+		claimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Bold(true)
 	})
+}
+
+func TestTaskTableWritesToWriter(t *testing.T) {
+	disableColorForTest(t)
 
 	now := time.Now()
 	tasks := []*task.Task{
@@ -80,13 +103,34 @@ func TestTaskTableColumnAlignment(t *testing.T) {
 	// Force ANSI color output even in non-TTY (test) environments.
 	// This is critical to catch the bug where %-*s counts ANSI bytes as width.
 	oldHeader, oldDim := headerStyle, dimStyle
+	oldStatus, oldPriority := statusStyles, priorityStyles
+	oldTag, oldClaim := tagStyle, claimStyle
 	t.Cleanup(func() {
 		headerStyle = oldHeader
 		dimStyle = oldDim
+		statusStyles = oldStatus
+		priorityStyles = oldPriority
+		tagStyle = oldTag
+		claimStyle = oldClaim
 	})
 	lipgloss.SetColorProfile(termenv.ANSI256)
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
 	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	statusStyles = map[string]lipgloss.Style{
+		"backlog":     lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+		"todo":        lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
+		"in-progress": lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+		"review":      lipgloss.NewStyle().Foreground(lipgloss.Color("62")),
+		"done":        lipgloss.NewStyle().Foreground(lipgloss.Color("34")),
+		"archived":    lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
+	}
+	priorityStyles = map[string]lipgloss.Style{
+		"critical": lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
+		"high":     lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
+		"medium":   lipgloss.NewStyle().Foreground(lipgloss.Color("226")),
+		"low":      lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+	}
+	tagStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
 
 	now := time.Now()
 	due := date.New(2025, 6, 15)
@@ -134,6 +178,81 @@ func TestTaskTableColumnAlignment(t *testing.T) {
 	}
 }
 
+func TestTaskTableColorsApplied(t *testing.T) {
+	// Ensure ANSI escape codes appear in output when color is enabled.
+	oldHeader, oldDim := headerStyle, dimStyle
+	oldStatus, oldPriority := statusStyles, priorityStyles
+	oldTag, oldClaim := tagStyle, claimStyle
+	t.Cleanup(func() {
+		headerStyle = oldHeader
+		dimStyle = oldDim
+		statusStyles = oldStatus
+		priorityStyles = oldPriority
+		tagStyle = oldTag
+		claimStyle = oldClaim
+	})
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
+	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	statusStyles = map[string]lipgloss.Style{
+		"in-progress": lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+		"backlog":     lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
+	}
+	priorityStyles = map[string]lipgloss.Style{
+		"high":   lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
+		"medium": lipgloss.NewStyle().Foreground(lipgloss.Color("226")),
+	}
+	tagStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
+
+	now := time.Now()
+	tasks := []*task.Task{
+		{
+			ID: 1, Title: "Colored task", Status: "in-progress", Priority: "high",
+			Tags: []string{"feature"}, Created: now, Updated: now,
+		},
+	}
+
+	var buf strings.Builder
+	TaskTable(&buf, tasks)
+	out := buf.String()
+
+	// ANSI escape sequences start with ESC[ (\x1b[).
+	if !strings.Contains(out, "\x1b[") {
+		t.Errorf("expected ANSI escape codes in colored output, got:\n%s", out)
+	}
+}
+
+func TestDisableColorRemovesANSI(t *testing.T) {
+	// Verify that DisableColor strips all ANSI codes from output.
+	disableColorForTest(t)
+
+	now := time.Now()
+	tasks := []*task.Task{
+		{
+			ID: 1, Title: "Plain task", Status: "in-progress", Priority: "high",
+			Tags: []string{"bug"}, Created: now, Updated: now,
+		},
+	}
+
+	var buf strings.Builder
+	TaskTable(&buf, tasks)
+	out := buf.String()
+
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("DisableColor should remove all ANSI codes, got:\n%s", out)
+	}
+}
+
+func TestStyledValueFallback(t *testing.T) {
+	// Unknown values should pass through unstyled.
+	got := styledValue("unknown-status", map[string]lipgloss.Style{
+		"known": lipgloss.NewStyle().Bold(true),
+	})
+	if got != "unknown-status" {
+		t.Errorf("styledValue fallback = %q, want %q", got, "unknown-status")
+	}
+}
+
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -173,11 +292,7 @@ func TestFormatDuration_ExactDays(t *testing.T) {
 }
 
 func TestTaskDetail(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	now := time.Date(2026, 2, 8, 14, 30, 0, 0, time.UTC)
 	started := time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC)
@@ -217,11 +332,7 @@ func TestTaskDetail(t *testing.T) {
 }
 
 func TestTaskDetailCompleted(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	started := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -244,11 +355,7 @@ func TestTaskDetailCompleted(t *testing.T) {
 }
 
 func TestOverviewTable(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	overview := board.Overview{
 		BoardName:  "Test Board",
@@ -285,11 +392,7 @@ func TestOverviewTable(t *testing.T) {
 }
 
 func TestMetricsTable(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	leadTime := float64(48)
 	cycleTime := float64(24)
@@ -323,11 +426,7 @@ func TestMetricsTable(t *testing.T) {
 }
 
 func TestMetricsTableNoAging(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	metrics := board.Metrics{
 		Throughput7d:  0,
@@ -344,11 +443,7 @@ func TestMetricsTableNoAging(t *testing.T) {
 }
 
 func TestActivityLogTable(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	entries := []board.LogEntry{
 		{
@@ -397,11 +492,7 @@ func TestActivityLogTableEmpty(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGroupedTableMultipleGroups(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	gs := board.GroupedSummary{
 		Groups: []board.GroupSummary{
@@ -444,11 +535,7 @@ func TestGroupedTableMultipleGroups(t *testing.T) {
 }
 
 func TestGroupedTableSingleGroup(t *testing.T) {
-	DisableColor()
-	t.Cleanup(func() {
-		headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
-		dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	})
+	disableColorForTest(t)
 
 	gs := board.GroupedSummary{
 		Groups: []board.GroupSummary{
