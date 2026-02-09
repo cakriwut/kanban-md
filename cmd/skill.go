@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/antopolskiy/kanban-md/internal/output"
@@ -114,10 +114,11 @@ func runSkillInstall(cmd *cobra.Command, _ []string) error {
 
 		for _, s := range selectedSkills {
 			destPath := filepath.Join(baseDir, s.Name, "SKILL.md")
+			displayPath := relativePath(projectRoot, destPath)
 
 			if !force {
 				if v := skill.InstalledVersion(destPath); v == version {
-					output.Messagef(os.Stdout, "  %s/%s — already at %s (skipped)", agent.DisplayName, s.Name, version)
+					output.Messagef(os.Stdout, "  %s — already at %s (skipped)", displayPath, version)
 					continue
 				}
 			}
@@ -125,7 +126,7 @@ func runSkillInstall(cmd *cobra.Command, _ []string) error {
 			if err := skill.Install(s.Name, baseDir, version); err != nil {
 				return fmt.Errorf("installing %s for %s: %w", s.Name, agent.DisplayName, err)
 			}
-			output.Messagef(os.Stdout, "  %s/%s — installed (%s)", agent.DisplayName, s.Name, version)
+			output.Messagef(os.Stdout, "  %s (%s)", displayPath, version)
 			installed++
 		}
 	}
@@ -399,41 +400,124 @@ type menuItem struct {
 	selected    bool
 }
 
-// multiSelect displays a terminal multi-select menu and returns the indices
-// of selected items. All items are pre-selected by default.
+// multiSelect displays an interactive multi-select menu using bubbletea
+// and returns the indices of selected items. Navigate with j/k or arrows,
+// space to toggle, enter to confirm.
 func multiSelect(prompt string, items []menuItem) []int {
-	fmt.Fprintln(os.Stderr, prompt)
-	for i, item := range items {
-		check := "x"
-		if !item.selected {
-			check = " "
-		}
-		fmt.Fprintf(os.Stderr, "  [%s] %d. %s — %s\n", check, i+1, item.label, item.description)
-	}
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "Press Enter to confirm, or type numbers to toggle (e.g. '1,3'): ")
-
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			// Toggle specified items.
-			for _, part := range strings.Split(line, ",") {
-				part = strings.TrimSpace(part)
-				if idx, err := strconv.Atoi(part); err == nil && idx >= 1 && idx <= len(items) {
-					items[idx-1].selected = !items[idx-1].selected
-				}
-			}
-		}
+	m := selectModel{
+		prompt: prompt,
+		items:  items,
 	}
 
+	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
+	result, err := p.Run()
+	if err != nil {
+		// Fallback: return all items selected.
+		indices := make([]int, len(items))
+		for i := range indices {
+			indices[i] = i
+		}
+		return indices
+	}
+
+	final := result.(selectModel)
 	var selected []int
-	for i, item := range items {
+	for i, item := range final.items {
 		if item.selected {
 			selected = append(selected, i)
 		}
 	}
 	return selected
+}
+
+// selectModel is a bubbletea model for the multi-select menu.
+type selectModel struct {
+	prompt string
+	items  []menuItem
+	cursor int
+	done   bool
+}
+
+var (
+	selectActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	selectDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	selectCheckStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+)
+
+func (m selectModel) Init() tea.Cmd { return nil }
+
+func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.done {
+		return m, nil
+	}
+
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+
+	switch keyMsg.String() {
+	case "j", "down":
+		if m.cursor < len(m.items)-1 {
+			m.cursor++
+		}
+	case "k", "up":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case " ":
+		m.items[m.cursor].selected = !m.items[m.cursor].selected
+	case "enter":
+		m.done = true
+		return m, tea.Quit
+	case "q", "ctrl+c":
+		m.done = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m selectModel) View() string {
+	if m.done {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(m.prompt + "\n")
+
+	for i, item := range m.items {
+		check := "✓"
+		checkRendered := selectCheckStyle.Render(check)
+		if !item.selected {
+			check = " "
+			checkRendered = check
+		}
+
+		cursor := " "
+		if i == m.cursor {
+			cursor = "›"
+		}
+
+		label := item.label
+		desc := selectDimStyle.Render(item.description)
+		if i == m.cursor {
+			label = selectActiveStyle.Render(label)
+		}
+
+		b.WriteString(fmt.Sprintf("  %s [%s] %s — %s\n", cursor, checkRendered, label, desc))
+	}
+
+	b.WriteString(selectDimStyle.Render("\n  ↑/↓ navigate • space toggle • enter confirm\n"))
+	return b.String()
+}
+
+// relativePath returns a path relative to root, or the absolute path if it cannot be made relative.
+func relativePath(root, abs string) string {
+	rel, err := filepath.Rel(root, abs)
+	if err != nil {
+		return abs
+	}
+	return rel
 }
 
 // exitCodeError is a simple error that carries an exit code.

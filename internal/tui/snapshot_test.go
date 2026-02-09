@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -186,6 +187,71 @@ func TestSnapshot_ScrollBothIndicators(t *testing.T) {
 		b = sendKey(b, "j")
 	}
 	assertGolden(t, "scroll_both_indicators", b.View())
+}
+
+func TestSnapshot_Showcase(t *testing.T) {
+	b, _ := setupShowcaseBoard(t)
+	assertGolden(t, "showcase", b.View())
+}
+
+func setupShowcaseBoard(t *testing.T) (*tui.Board, *config.Config) {
+	t.Helper()
+
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	tasksDir := filepath.Join(kanbanDir, "tasks")
+
+	if err := os.MkdirAll(tasksDir, 0o750); err != nil {
+		t.Fatalf("creating dirs: %v", err)
+	}
+
+	cfg := config.NewDefault("My Project")
+	cfg.SetDir(kanbanDir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	now := time.Now()
+	claimedAt := &now
+
+	tasks := []task.Task{
+		// Backlog (8)
+		{ID: 1, Title: "Performance testing", Status: "backlog", Priority: "low", Tags: []string{"testing"}},
+		{ID: 2, Title: "Mobile responsive layout", Status: "backlog", Priority: "medium", Tags: []string{"frontend"}},
+		{ID: 3, Title: "Database migration tool", Status: "backlog", Priority: "low", Tags: []string{"backend"}},
+		{ID: 15, Title: "Add search autocomplete", Status: "backlog", Priority: "medium", Tags: []string{"frontend"}},
+		{ID: 16, Title: "Email notification service", Status: "backlog", Priority: "high", Tags: []string{"backend"}},
+		{ID: 17, Title: "Localization support", Status: "backlog", Priority: "low", Tags: []string{"i18n"}},
+		{ID: 18, Title: "Audit logging", Status: "backlog", Priority: "medium", Tags: []string{"security"}},
+		{ID: 19, Title: "Export to CSV", Status: "backlog", Priority: "low", Tags: []string{"feature"}},
+		// Todo (3)
+		{ID: 4, Title: "Add rate limiting", Status: "todo", Priority: "medium", Tags: []string{"backend"}},
+		{ID: 5, Title: "Set up monitoring", Status: "todo", Priority: "medium", Tags: []string{"devops"}},
+		{ID: 6, Title: "Write integration tests", Status: "todo", Priority: "high", Tags: []string{"testing"}},
+		// In-progress (3) — each claimed by a unique agent
+		{ID: 7, Title: "Build dashboard UI", Status: "in-progress", Priority: "high", Tags: []string{"frontend"}, ClaimedBy: "frost-maple", ClaimedAt: claimedAt},
+		{ID: 8, Title: "Write API docs", Status: "in-progress", Priority: "medium", Tags: []string{"docs"}, ClaimedBy: "amber-swift", ClaimedAt: claimedAt},
+		{ID: 9, Title: "Fix auth token refresh", Status: "in-progress", Priority: "critical", Tags: []string{"security"}, ClaimedBy: "coral-dusk", ClaimedAt: claimedAt},
+		// Review (2) — each claimed by a unique agent
+		{ID: 10, Title: "Implement user auth", Status: "review", Priority: "critical", Tags: []string{"backend"}, ClaimedBy: "sage-river", ClaimedAt: claimedAt},
+		{ID: 11, Title: "Design REST API schema", Status: "review", Priority: "high", Tags: []string{"api"}, ClaimedBy: "neon-drift", ClaimedAt: claimedAt},
+		// Done (3)
+		{ID: 12, Title: "Set up CI pipeline", Status: "done", Priority: "high", Tags: []string{"devops"}},
+		{ID: 13, Title: "Create project scaffold", Status: "done", Priority: "high", Tags: []string{"setup"}},
+		{ID: 14, Title: "Define database schema", Status: "done", Priority: "medium", Tags: []string{"backend"}},
+	}
+
+	for i := range tasks {
+		tk := &tasks[i]
+		path := filepath.Join(tasksDir, task.GenerateFilename(tk.ID, tk.Title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	return b, cfg
 }
 
 func TestSnapshot_EmptyBoard(t *testing.T) {

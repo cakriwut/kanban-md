@@ -1,3 +1,19 @@
+---
+name: kanban-based-development
+description: >
+  Autonomous, parallel-safe development workflow using kanban-md.
+  Use when the user asks to work through tasks, do kanban-based development,
+  or when multiple agents need to coordinate work on the same codebase.
+  Covers claim mechanics, git worktrees, and status lifecycle.
+allowed-tools:
+  - Bash(kanban-md *)
+  - Bash(kbmd *)
+  - Bash(git *)
+  - Bash(go *)
+  - Bash(golangci-lint *)
+  - Bash(awk *)
+---
+
 # Kanban-Based Development
 
 A methodology for autonomous, parallel-safe development using kanban-md to manage tasks and git worktrees to isolate work.

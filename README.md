@@ -7,46 +7,50 @@
 [![codecov](https://codecov.io/gh/antopolskiy/kanban-md/graph/badge.svg)](https://codecov.io/gh/antopolskiy/kanban-md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A file-based Kanban tool powered by Markdown. Tasks are stored as individual `.md` files with YAML frontmatter, making them easy to read, edit, and version-control.
+An agent-first file-based Kanban. Built for multi-agent workflows where AI agents work in parallel. Ultra-fast single binary CLI. Agent skills included.
+
+No database, no server, no SaaS — just files.
+
+![CLI](assets/cli-screenshot.png)
+
 
 ## Why kanban-md?
 
-Most project management tools lock your data behind a UI or an API. kanban-md takes a different approach:
+Project management tools are designed for humans clicking buttons. kanban-md is designed for AI agents running commands and humans observing the board.
 
-- **Plain files.** Every task is a Markdown file. You can read, edit, grep, and diff them with any tool you already use.
-- **Version-controlled by default.** Task files live in your repo alongside code. Every change is a commit. History is free.
-- **Built for automation.** Table output by default, compact one-line format for AI agents (`--compact`), JSON for scripts (`--json`). Deterministic file naming and a CLI-first interface make it easy to integrate with CI pipelines or custom tooling.
+- **Agent-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
+- **Multi-agent safe.** Claims provide cooperative locking so multiple agents can work the same board without stepping on each other. Claims expire automatically, and the `pick` command atomically finds, claims, and moves the next available task.
+- **Plain files.** Every task is a Markdown file. Agents, humans, scripts, and `grep` all work equally well. No API tokens, no authentication, no rate limits.
 - **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
+- **TUI for observation.** A full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
+
+![Interactive TUI](assets/tui-screenshot.png)
 
 ## Installation
 
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install antopolskiy/tap/kanban-md
+# CLI + 
+brew install antopolskiy/tap/kanban-md antopolskiy/tap/kanban-md-tui
 ```
 
 ### Go
 
 ```bash
 go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest
+go install github.com/antopolskiy/kanban-md/cmd/kanban-md-tui@latest
 ```
 
 Homebrew also installs `kbmd` as a shorthand alias for `kanban-md`.
-
-### Interactive TUI
-
-An interactive terminal UI is also available:
-
-```bash
-go install github.com/antopolskiy/kanban-md/cmd/kanban-md-tui@latest
-```
 
 ### Binary downloads
 
 Pre-built binaries for macOS, Linux, and Windows are available on the [Releases](https://github.com/antopolskiy/kanban-md/releases/latest) page.
 
 ## Quick start
+
+Note: normally, you wouldn't run the CLI commands directly. Your agents will do that for you.
 
 ```bash
 # Initialize a board in the current directory
@@ -493,9 +497,36 @@ kanban-md completion fish | source
 kanban-md completion powershell | Out-String | Invoke-Expression
 ```
 
+## Agent skills
+
+kanban-md ships with installable skills that teach AI agents how to use the board. Skills are auto-triggered prompt files that give agents command references, decision trees, and workflows — so they manage tasks correctly without you writing custom instructions.
+
+Two skills are included:
+
+| Skill | Description |
+|-------|-------------|
+| **kanban-md** | Command reference, decision trees, and workflows for managing tasks via CLI. Auto-triggered when an agent encounters task-related work. |
+| **kanban-based-development** | Full autonomous development workflow — multi-agent claim semantics, git worktrees for isolation, and a strict status lifecycle (in-progress → review → done). |
+
+```bash
+# Install skills for all detected agents (Claude Code, Codex, Cursor, OpenClaw)
+kanban-md skill install
+
+# Check if installed skills are up to date
+kanban-md skill check
+
+# Update skills to match current CLI version
+kanban-md skill update
+
+# Preview skill contents
+kanban-md skill show
+```
+
+Skills are versioned to match the CLI. When you upgrade kanban-md, `skill check` tells you if your installed skills are outdated, and `skill update` brings them in sync.
+
 ## Multi-agent workflow
 
-kanban-md supports concurrent work by multiple agents (AI or human) through claims and classes of service.
+kanban-md is designed for concurrent work by multiple agents (AI or human) through claims and classes of service.
 
 ### Claims
 
@@ -542,11 +573,11 @@ kanban-md list --group-by priority      # priority distribution
 
 ## Design principles
 
+**Agent-first, human-friendly.** Every feature is designed to work in non-interactive, piped, multi-agent contexts first. Humans get a TUI and table output; agents get `--compact` (70% fewer tokens than JSON) and atomic operations like `pick --claim`.
+
 **Files are the API.** The CLI is a convenience layer over a simple file format. You can always fall back to editing files directly — the tool will pick up changes.
 
-**Predictable output.** Default is table (human-readable). Use `--compact` for AI agents (token-efficient one-line format), `--json` for scripting. JSON follows a stable schema for automation.
-
-**No hidden state.** Everything is in `config.yml` and the task files. There's no database, no cache, no lock file. Two people (or agents) can work on the same board by editing different files and merging via git.
+**No hidden state.** Everything is in `config.yml` and the task files. There's no database, no cache, no lock file. Two agents can work on the same board by editing different files and merging via git.
 
 **Minimal by default.** The tool does one thing — manage task files — and stays out of the way. It doesn't sync, notify, render boards, or integrate with anything. Those are better handled by other tools reading the same files.
 

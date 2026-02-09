@@ -3088,8 +3088,8 @@ func TestSkillInstallAndCheck(t *testing.T) {
 	if r.exitCode != 0 {
 		t.Fatalf("skill install failed: %s", r.stderr)
 	}
-	if !strings.Contains(r.stdout, "installed") {
-		t.Errorf("expected 'installed' in output, got:\n%s", r.stdout)
+	if !strings.Contains(r.stdout, "SKILL.md") {
+		t.Errorf("expected file paths in output, got:\n%s", r.stdout)
 	}
 
 	// Check that SKILL.md files were created.
@@ -3160,7 +3160,7 @@ func TestSkillInstallForce(t *testing.T) {
 	if r.exitCode != 0 {
 		t.Fatalf("force install failed: %s", r.stderr)
 	}
-	if !strings.Contains(r.stdout, "installed") {
+	if !strings.Contains(r.stdout, "SKILL.md") {
 		t.Errorf("force install should re-install, got:\n%s", r.stdout)
 	}
 }

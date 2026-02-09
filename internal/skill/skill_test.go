@@ -88,7 +88,6 @@ func TestDetectAgents(t *testing.T) {
 	}
 
 	detected := DetectAgents(tmp)
-	// Should detect Claude Code and OpenClaw (always detected).
 	var names []string
 	for _, a := range detected {
 		names = append(names, a.Name)
@@ -96,11 +95,24 @@ func TestDetectAgents(t *testing.T) {
 	if !contains(names, "claude") {
 		t.Error("expected claude to be detected")
 	}
-	if !contains(names, "openclaw") {
-		t.Error("expected openclaw to be detected (always present)")
+	if contains(names, "openclaw") {
+		t.Error("openclaw should not be detected without skills/ dir")
 	}
 	if contains(names, "codex") {
 		t.Error("codex should not be detected without .agents/ dir")
+	}
+
+	// Create skills/ directory — now OpenClaw should be detected.
+	if err := os.MkdirAll(filepath.Join(tmp, "skills"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	detected = DetectAgents(tmp)
+	names = nil
+	for _, a := range detected {
+		names = append(names, a.Name)
+	}
+	if !contains(names, "openclaw") {
+		t.Error("expected openclaw to be detected with skills/ dir")
 	}
 }
 

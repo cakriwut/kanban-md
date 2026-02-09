@@ -10,6 +10,7 @@ allowed-tools:
   - Bash(kanban-md *)
   - Bash(kbmd *)
 ---
+<!-- kanban-md-skill-version: 0.20.0 -->
 
 # kanban-md
 
@@ -24,9 +25,10 @@ Each task is a `.md` file in `kanban/tasks/`. The CLI is `kanban-md`
 ## Rules
 
 - Use `--compact` for listing commands (`list`, `board`, `metrics`, `log`) to get
-  token-efficient one-line output. Only use `--json` with `show` when you need
-  full structured task data (body, timestamps, dependencies).
-  For the `show --json` schema, see [references/json-schemas.md](references/json-schemas.md).
+  token-efficient one-line output.
+- Use `kanban-md show ID` (default table format) to read task details — it includes
+  the full body and all fields in a human-readable layout. Only add `--json` when you
+  need to pipe the output to another tool or parse fields programmatically.
 - Always pass `--force` when deleting (`kanban-md delete ID --force`).
 - Dates use `YYYY-MM-DD` format.
 - Statuses and priorities are board-specific. Check the board state above or run
@@ -47,7 +49,7 @@ Each task is a `.md` file in `kanban/tasks/`. The CLI is `kanban-md`
 | List blocked tasks                      | `kanban-md list --compact --blocked`                    |
 | List ready-to-start tasks               | `kanban-md list --compact --not-blocked --status todo`  |
 | List tasks with resolved deps           | `kanban-md list --compact --unblocked`                  |
-| Find a specific task                    | `kanban-md show ID --json`                              |
+| Find a specific task                    | `kanban-md show ID`                                     |
 | Create a task                           | `kanban-md create "TITLE" --priority P --tags T`        |
 | Create a task with body                 | `kanban-md create "TITLE" --body "DESC"`                |
 | Start working on a task                 | `kanban-md move ID in-progress`                         |
@@ -93,11 +95,13 @@ Prints the created task ID and summary.
 ### show
 
 ```bash
-kanban-md show ID --json
+kanban-md show ID
+kanban-md show ID --json   # only when piping to another tool
 ```
 
-Returns a single task object including body text. Use `--json` here to get
-full structured data for parsing. See [references/json-schemas.md](references/json-schemas.md).
+Default format shows all fields including the body in a readable layout.
+Use `--json` only when you need to parse fields programmatically.
+For the JSON schema, see [references/json-schemas.md](references/json-schemas.md).
 
 ### edit
 
@@ -207,9 +211,9 @@ All commands accept: `--json`, `--table`, `--compact` (alias `--oneline`), `--di
 ## Pitfalls
 
 - **DO** use `--compact` for listing, board, metrics, and log commands — it is the most token-efficient format.
+- **DO** use `kanban-md show ID` (default format) to read task details — it is readable and includes the full body.
 - **DO** pass `--force` on delete. Without it, the command hangs waiting for stdin.
-- **DO** use `--json` with `show` when you need to parse task fields programmatically.
-- **DO NOT** use `--json` on other commands unless you specifically need structured output — `--compact` saves tokens.
+- **DO NOT** use `--json` unless you are piping output to another tool or parsing fields programmatically. Default and `--compact` formats are sufficient for reading.
 - **DO NOT** hardcode status or priority values. Read them from `kanban-md board --compact`.
 - **DO NOT** use `--next` or `--prev` without checking current status. They fail at boundary statuses.
 - **DO NOT** pass both `--status` and `--next`/`--prev` to move. Use one or the other.

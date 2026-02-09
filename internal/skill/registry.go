@@ -86,13 +86,19 @@ func (a *Agent) GlobalPath() string {
 
 // DetectAgents returns agents whose project-level skill directory parent exists
 // in the given project root. For example, if .claude/ exists, Claude Code is detected.
+// Agents with a top-level project directory (e.g. OpenClaw's "skills/") are only
+// detected if that directory already exists, since there is no unique parent to check.
 func DetectAgents(projectRoot string) []Agent {
 	var detected []Agent
 	for _, a := range agents {
 		parentDir := filepath.Dir(a.ProjectDir)
 		if parentDir == "." {
-			// OpenClaw uses "skills" at root — always detected.
-			detected = append(detected, a)
+			// Agent uses a top-level directory (e.g. "skills/").
+			// Only detect if the directory itself already exists.
+			absDir := filepath.Join(projectRoot, a.ProjectDir)
+			if info, err := os.Stat(absDir); err == nil && info.IsDir() {
+				detected = append(detected, a)
+			}
 			continue
 		}
 		absParent := filepath.Join(projectRoot, parentDir)
