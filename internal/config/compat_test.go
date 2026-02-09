@@ -482,6 +482,66 @@ func TestCompatV6ConfigMigratesToV7(t *testing.T) {
 	}
 }
 
+func TestCompatV7Config(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v7")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v7 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v7" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v7")
+	}
+}
+
+func TestCompatV7ConfigMigratesToV8(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v7")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v7 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+
+	// v7→v8 migration should set show_duration=false on first, last-non-archived, and archived.
+	// Statuses: backlog, todo, in-progress, review, done, archived
+	// Expected: backlog(false), todo(nil), in-progress(nil), review(nil), done(false), archived(false)
+	expectHidden := map[string]bool{"backlog": true, "done": true, "archived": true}
+	for _, sc := range cfg.Statuses {
+		if expectHidden[sc.Name] {
+			if sc.ShowDuration == nil || *sc.ShowDuration {
+				t.Errorf("Status %q: ShowDuration should be false after migration, got %v", sc.Name, sc.ShowDuration)
+			}
+		} else {
+			if sc.ShowDuration != nil {
+				t.Errorf("Status %q: ShowDuration should be nil (unset) after migration, got %v", sc.Name, *sc.ShowDuration)
+			}
+		}
+	}
+
+	// Existing fields should be preserved.
+	if !cfg.StatusRequiresClaim("in-progress") {
+		t.Error("in-progress should still have require_claim=true")
+	}
+	if !cfg.StatusRequiresClaim("review") {
+		t.Error("review should still have require_claim=true")
+	}
+	if cfg.ClaimTimeout != "1h" {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, "1h")
+	}
+}
+
 func TestCompatV1TasksReadable(t *testing.T) {
 	// This test verifies that the current task reader can parse v1 task files.
 	// We only check that files exist and are well-formed here; detailed task

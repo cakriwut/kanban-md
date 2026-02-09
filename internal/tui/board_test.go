@@ -1315,3 +1315,83 @@ func TestBoard_CardsDoNotRenderBlankPaddingLines(t *testing.T) {
 		t.Fatalf("expected no blank card content lines, got:\n%s", v)
 	}
 }
+
+func TestBoard_DurationHiddenByConfig(t *testing.T) {
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	tasksDir := filepath.Join(kanbanDir, "tasks")
+
+	if err := os.MkdirAll(tasksDir, 0o750); err != nil {
+		t.Fatalf("creating dirs: %v", err)
+	}
+
+	cfg := config.NewDefault("Test Board")
+	cfg.SetDir(kanbanDir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	// Create one task in "todo" (show_duration defaults to true/nil)
+	// and one in "backlog" (show_duration=false by default).
+	tasks := []struct {
+		id     int
+		title  string
+		status string
+	}{
+		{1, "Backlog task", "backlog"},
+		{2, "Todo task", statusTodo},
+	}
+	for _, tt := range tasks {
+		tk := &task.Task{
+			ID:       tt.id,
+			Title:    tt.title,
+			Status:   tt.status,
+			Priority: "medium",
+			Updated:  testRefTime,
+		}
+		path := filepath.Join(tasksDir, task.GenerateFilename(tt.id, tt.title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.SetNow(testNow)
+	b.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	v := b.View()
+
+	// The view renders columns side-by-side. Check the details line of each card.
+	// Backlog card should show "medium" without "2h".
+	// Todo card should show "medium 2h".
+	if !containsStr(v, "medium 2h") {
+		t.Error("todo task should show 'medium 2h' (show_duration defaults to true)")
+	}
+
+	// Verify backlog card's details line contains just "medium" without age.
+	// In the columnar view, the backlog card content shows "medium" followed by spaces
+	// before the next column, while the todo card shows "medium 2h".
+	lines := strings.Split(v, "\n")
+	for _, line := range lines {
+		// Find the line with "medium" inside box-drawing chars (card content line).
+		// The backlog column comes first, so extract the first column's portion.
+		if !findSubstring(line, "medium") {
+			continue
+		}
+		// Split by the column separator "││" to isolate columns.
+		parts := strings.SplitN(line, "││", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		backlogPart := parts[0]
+		todoPart := parts[1]
+
+		// Backlog column should have "medium" but NOT "2h".
+		if findSubstring(backlogPart, "medium") && findSubstring(backlogPart, "2h") {
+			t.Error("backlog task should NOT show age duration (show_duration=false)")
+		}
+		// Todo column should have "medium" AND "2h".
+		if findSubstring(todoPart, "medium") && !findSubstring(todoPart, "2h") {
+			t.Error("todo task should show age duration (show_duration defaults to true)")
+		}
+	}
+}

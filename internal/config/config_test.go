@@ -196,3 +196,28 @@ func TestPriorityIndex(t *testing.T) {
 		t.Errorf("PriorityIndex('nonexistent') = %d, want -1", idx)
 	}
 }
+
+func TestStatusShowDuration(t *testing.T) {
+	cfg := NewDefault("Test")
+
+	// Default config: backlog and done have show_duration=false, others default to true.
+	if cfg.StatusShowDuration("backlog") {
+		t.Error("backlog should have ShowDuration=false by default")
+	}
+	if !cfg.StatusShowDuration("todo") {
+		t.Error("todo should have ShowDuration=true by default")
+	}
+	if !cfg.StatusShowDuration("in-progress") {
+		t.Error("in-progress should have ShowDuration=true by default")
+	}
+	if cfg.StatusShowDuration("done") {
+		t.Error("done should have ShowDuration=false by default")
+	}
+	if cfg.StatusShowDuration(ArchivedStatus) {
+		t.Error("archived should have ShowDuration=false by default")
+	}
+	// Unknown status defaults to true.
+	if !cfg.StatusShowDuration(nonexistentName) {
+		t.Error("unknown status should default to ShowDuration=true")
+	}
+}

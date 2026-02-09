@@ -43,6 +43,7 @@ var migrations = map[int]func(*Config) error{
 	4: migrateV4ToV5,
 	5: migrateV5ToV6,
 	6: migrateV6ToV7,
+	7: migrateV7ToV8,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -100,5 +101,26 @@ func migrateV5ToV6(cfg *Config) error { //nolint:unparam // signature must match
 // require_claim: false (the zero value) — opting in is a manual step for existing users.
 func migrateV6ToV7(cfg *Config) error { //nolint:unparam // signature must match migrations map type
 	cfg.Version = 7
+	return nil
+}
+
+// migrateV7ToV8 adds show_duration to statuses. For existing configs, hide duration
+// on the first status (backlog), the last non-archived status (done), and archived.
+func migrateV7ToV8(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	if len(cfg.Statuses) > 0 {
+		hide := boolPtr(false)
+		// Hide duration on first status.
+		cfg.Statuses[0].ShowDuration = hide
+		// Find last non-archived status and hide duration on it.
+		lastIdx := len(cfg.Statuses) - 1
+		if cfg.Statuses[lastIdx].Name == ArchivedStatus {
+			cfg.Statuses[lastIdx].ShowDuration = hide
+			if lastIdx > 0 {
+				lastIdx--
+			}
+		}
+		cfg.Statuses[lastIdx].ShowDuration = hide
+	}
+	cfg.Version = 8
 	return nil
 }

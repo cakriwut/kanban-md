@@ -799,9 +799,11 @@ func (b *Board) cardContentLines(t *task.Task, width int) []string {
 		details = append(details, dimStyle.Render("due:"+t.Due.String()))
 	}
 
-	ageDur := b.now().Sub(t.Updated)
-	age := humanDuration(ageDur)
-	details = append(details, b.ageStyle(ageDur).Render(age))
+	if b.cfg.StatusShowDuration(t.Status) {
+		ageDur := b.now().Sub(t.Updated)
+		age := humanDuration(ageDur)
+		details = append(details, b.ageStyle(ageDur).Render(age))
+	}
 
 	contentLines = append(contentLines, strings.Join(details, " "))
 
