@@ -5,7 +5,7 @@ before:
     - go mod download
 builds:
   - id: kanban-md
-    main: .
+    main: ./cmd/kanban-md
     binary: kanban-md
     ldflags:
       - -s -w -X github.com/antopolskiy/kanban-md/cmd.version={{.Version}}

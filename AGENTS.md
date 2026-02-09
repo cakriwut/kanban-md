@@ -164,33 +164,33 @@ This project uses its own kanban board (in `kanban/`) to track work. Use the CLI
 
 1. **Before starting work**, check the board:
    ```
-   go run . list
-   go run . list --status backlog
+   go run ./cmd/kanban-md list
+   go run ./cmd/kanban-md list --status backlog
    ```
 
 2. **When picking up a task**, move it to in-progress:
    ```
-   go run . move <ID> in-progress
+   go run ./cmd/kanban-md move <ID> in-progress
    ```
 
 3. **When finishing a task**, move it to done:
    ```
-   go run . move <ID> done
+   go run ./cmd/kanban-md move <ID> done
    ```
 
 4. **When starting a new piece of work** that isn't already tracked, create a task:
    ```
-   go run . create "Short descriptive title" --priority <low|medium|high|critical> --tags <layer-N>
+   go run ./cmd/kanban-md create "Short descriptive title" --priority <low|medium|high|critical> --tags <layer-N>
    ```
    Then add a body with relevant context (reference to proposal docs, scope notes, etc.):
    ```
-   go run . edit <ID> --body "Description of what needs to be done. See docs/plans/layer-N-xxx.md"
+   go run ./cmd/kanban-md edit <ID> --body "Description of what needs to be done. See docs/plans/layer-N-xxx.md"
    ```
 
 5. **When a task is blocked or no longer needed**, update accordingly:
    ```
-   go run . move <ID> backlog
-   go run . delete <ID>
+   go run ./cmd/kanban-md move <ID> backlog
+   go run ./cmd/kanban-md delete <ID>
    ```
 
 ### Conventions
@@ -207,11 +207,11 @@ When you encounter problems or have ideas while using the tool, create tasks for
 
 - **Bugs**: Something that doesn't work as expected.
   ```
-  go run . create "Fix: <description of bug>" --priority high --tags bug
+  go run ./cmd/kanban-md create "Fix: <description of bug>" --priority high --tags bug
   ```
 - **Ideas**: Usability improvements, missing features, or things that feel awkward.
   ```
-  go run . create "<description of improvement>" --priority low --tags idea
+  go run ./cmd/kanban-md create "<description of improvement>" --priority low --tags idea
   ```
 - Always add a `--body` explaining what happened, what you expected, and (for bugs) how to reproduce.
 - These tasks help us dogfood the tool and build a backlog of real-world improvements.

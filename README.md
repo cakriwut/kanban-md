@@ -29,7 +29,7 @@ brew install antopolskiy/tap/kanban-md
 ### Go
 
 ```bash
-go install github.com/antopolskiy/kanban-md@latest
+go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest
 ```
 
 Homebrew also installs `kbmd` as a shorthand alias for `kanban-md`.

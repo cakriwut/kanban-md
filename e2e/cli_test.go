@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 	binPath = filepath.Join(tmp, binName)
 
 	//nolint:gosec,noctx // building test binary in TestMain (no context available)
-	build := exec.Command("go", "build", "-o", binPath, "..")
+	build := exec.Command("go", "build", "-o", binPath, "../cmd/kanban-md")
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {
 		panic("building binary: " + err.Error())
@@ -2834,7 +2834,7 @@ func TestVersionLdflags(t *testing.T) {
 	//nolint:gosec,noctx // building test binary with ldflags
 	build := exec.Command("go", "build",
 		"-ldflags", "-X github.com/antopolskiy/kanban-md/cmd.version="+wantVersion,
-		"-o", versionBin, "..")
+		"-o", versionBin, "../cmd/kanban-md")
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {
 		t.Fatalf("building binary with ldflags: %v", err)
