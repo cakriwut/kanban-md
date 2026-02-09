@@ -37,6 +37,7 @@ func init() {
 	listCmd.Flags().Bool("unclaimed", false, "show only unclaimed or expired-claim tasks")
 	listCmd.Flags().String("claimed-by", "", "filter by claimant")
 	listCmd.Flags().String("class", "", "filter by class of service")
+	listCmd.Flags().StringP("search", "s", "", "search tasks by title, body, or tags (case-insensitive)")
 	listCmd.Flags().String("group-by", "", "group results by field ("+strings.Join(board.ValidGroupByFields(), ", ")+")")
 	rootCmd.AddCommand(listCmd)
 }
@@ -61,6 +62,7 @@ func runList(cmd *cobra.Command, _ []string) error {
 	unclaimed, _ := cmd.Flags().GetBool("unclaimed")
 	claimedBy, _ := cmd.Flags().GetString("claimed-by")
 	class, _ := cmd.Flags().GetString("class")
+	search, _ := cmd.Flags().GetString("search")
 	groupBy, _ := cmd.Flags().GetString("group-by")
 
 	if groupBy != "" && !slices.Contains(board.ValidGroupByFields(), groupBy) {
@@ -73,6 +75,7 @@ func runList(cmd *cobra.Command, _ []string) error {
 		Priorities:   priorities,
 		Assignee:     assignee,
 		Tag:          tag,
+		Search:       search,
 		ClaimTimeout: cfg.ClaimTimeoutDuration(),
 	}
 

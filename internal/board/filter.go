@@ -2,6 +2,7 @@
 package board
 
 import (
+	"strings"
 	"time"
 
 	"github.com/antopolskiy/kanban-md/internal/task"
@@ -13,6 +14,7 @@ type FilterOptions struct {
 	Priorities   []string
 	Assignee     string
 	Tag          string
+	Search       string        // case-insensitive substring match across title, body, and tags
 	Blocked      *bool         // nil=no filter, true=only blocked, false=only not-blocked
 	ParentID     *int          // nil=no filter, non-nil=only tasks with this parent
 	Unclaimed    bool          // only unclaimed or expired-claim tasks
@@ -61,7 +63,27 @@ func matchesCoreFilter(t *task.Task, opts FilterOptions) bool {
 	return true
 }
 
+// matchesSearch performs case-insensitive substring matching across title, body, and tags.
+func matchesSearch(t *task.Task, query string) bool {
+	q := strings.ToLower(query)
+	if strings.Contains(strings.ToLower(t.Title), q) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(t.Body), q) {
+		return true
+	}
+	for _, tag := range t.Tags {
+		if strings.Contains(strings.ToLower(tag), q) {
+			return true
+		}
+	}
+	return false
+}
+
 func matchesExtendedFilter(t *task.Task, opts FilterOptions) bool {
+	if opts.Search != "" && !matchesSearch(t, opts.Search) {
+		return false
+	}
 	if opts.Unclaimed && !IsUnclaimed(t, opts.ClaimTimeout) {
 		return false
 	}

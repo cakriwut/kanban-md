@@ -188,6 +188,56 @@ func TestFilterUnblockedMissingDep(t *testing.T) {
 	}
 }
 
+func TestFilterBySearch(t *testing.T) {
+	tasks := []*task.Task{
+		{ID: 1, Title: "Fix login bug", Status: "backlog", Priority: "high", Body: "Users cannot log in with SSO"},
+		{ID: 2, Title: "Add dark mode", Status: "todo", Priority: "medium", Tags: []string{"ui", "theme"}},
+		{ID: 3, Title: "Update README", Status: "done", Priority: "low", Body: "Add installation instructions"},
+		{ID: 4, Title: "Refactor auth", Status: "in-progress", Priority: "high", Body: "Split login flow"},
+	}
+
+	tests := []struct {
+		name   string
+		search string
+		want   int
+	}{
+		{"match title", "login", 2},       // "Fix login bug" and "Split login flow" in body
+		{"match body", "SSO", 1},          // body of task 1
+		{"match tag", "theme", 1},         // tag of task 2
+		{"case insensitive", "readme", 1}, // title of task 3
+		{"no match", "nonexistent", 0},
+		{"empty search", "", 4}, // all tasks
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Filter(tasks, FilterOptions{Search: tt.search})
+			if len(result) != tt.want {
+				t.Errorf("got %d tasks, want %d", len(result), tt.want)
+			}
+		})
+	}
+}
+
+func TestFilterSearchCombinedWithOtherFilters(t *testing.T) {
+	tasks := []*task.Task{
+		{ID: 1, Title: "Fix login bug", Status: "backlog", Priority: "high"},
+		{ID: 2, Title: "Fix signup bug", Status: "backlog", Priority: "medium"},
+		{ID: 3, Title: "Fix login flow", Status: "done", Priority: "high"},
+	}
+
+	result := Filter(tasks, FilterOptions{
+		Search:   "login",
+		Statuses: []string{"backlog"},
+	})
+	if len(result) != 1 {
+		t.Errorf("got %d tasks, want 1 (login + backlog)", len(result))
+	}
+	if len(result) > 0 && result[0].ID != 1 {
+		t.Errorf("got task #%d, want #1", result[0].ID)
+	}
+}
+
 func TestCountByStatus(t *testing.T) {
 	tasks := makeTasks() // 2 backlog, 1 in-progress, 1 done
 	counts := CountByStatus(tasks)

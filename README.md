@@ -196,6 +196,7 @@ kanban-md list [FLAGS]
 | `--priority` | | Filter by priority (comma-separated) |
 | `--assignee` | | Filter by assignee |
 | `--tag` | | Filter by tag |
+| `-s`, `--search` | | Search tasks by title, body, or tags (case-insensitive) |
 | `--blocked` | false | Show only blocked tasks |
 | `--not-blocked` | false | Show only non-blocked tasks |
 | `--parent` | | Filter by parent task ID |
