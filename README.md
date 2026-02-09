@@ -11,15 +11,15 @@ An agents-first file-based Kanban. Built for multi-agent workflows to allow AI a
 
 ![CLI](assets/cli-screenshot.png)
 
-
 ## Why kanban-md?
 
-Project management tools are designed for humans clicking buttons. kanban-md is designed for AI agents running commands and humans observing the board.
+Project management tools are designed for humans clicking buttons. kanban-md is designed for AI agents running commands and human supervision.
 
-- **Agent-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
+- **Agents-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
 - **Multi-agent safe.** Claims provide cooperative locking so multiple agents can work the same board without stepping on each other. Claims expire automatically, and the `pick` command atomically finds, claims, and moves the next available task.
 - **Plain files.** Every task is a Markdown file. Agents, humans, scripts, and `grep` all work equally well. No API tokens, no authentication, no rate limits.
 - **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
+- **Skills included.** Pre-written skills for using the CLI tool and a multi-agent development workflow. Installable via `kanban-md skill install`.
 - **TUI for observation.** A full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
 
 ![Interactive TUI](assets/tui-screenshot.png)
