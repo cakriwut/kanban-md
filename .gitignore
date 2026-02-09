@@ -46,3 +46,6 @@ dist/
 
 # Local kanban board (used for dogfooding during development)
 /kanban/
+
+# Internal docs (plans, research reports) — not shipped
+/docs/
