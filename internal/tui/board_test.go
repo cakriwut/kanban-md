@@ -737,8 +737,8 @@ func TestBoard_ScrollWithTitleLines2(t *testing.T) {
 func TestBoard_Init(t *testing.T) {
 	b, _ := setupTestBoard(t)
 	cmd := b.Init()
-	if cmd != nil {
-		t.Error("expected Init() to return nil cmd")
+	if cmd == nil {
+		t.Error("expected Init() to return a tick command")
 	}
 }
 
@@ -1145,5 +1145,39 @@ func TestBoard_ScrollUpEnsureVisible(t *testing.T) {
 	// The first task in the done column should be visible after scrolling back.
 	if !containsStr(v, "Done task 1") {
 		t.Error("expected 'Done task 1' visible after scrolling back to top")
+	}
+}
+
+func TestBoard_InitReturnsTickCmd(t *testing.T) {
+	b, _ := setupTestBoard(t)
+	cmd := b.Init()
+	if cmd == nil {
+		t.Fatal("Init() should return a tick command, got nil")
+	}
+}
+
+func TestBoard_TickMsgUpdatesAge(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	// Initial view shows "2h" because testNow is 2h after testRefTime.
+	v1 := b.View()
+	if !containsStr(v1, "2h") {
+		t.Fatal("expected initial view to contain '2h' age")
+	}
+
+	// Advance the clock by 1 hour and send a tickMsg to trigger re-render.
+	b.SetNow(func() time.Time { return testRefTime.Add(3 * time.Hour) })
+	m, cmd := b.Update(tui.TickMsg{})
+	b = m.(*tui.Board)
+
+	// The tick handler should return a follow-up tick command.
+	if cmd == nil {
+		t.Fatal("tickMsg handler should return a follow-up tick command")
+	}
+
+	// View should now show "3h" instead of "2h".
+	v2 := b.View()
+	if !containsStr(v2, "3h") {
+		t.Errorf("expected view to contain '3h' after clock advance, got:\n%s", v2)
 	}
 }

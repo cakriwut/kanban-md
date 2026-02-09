@@ -37,6 +37,7 @@ const (
 	tagMaxFraction = 2 // tags get at most 1/N of card width
 	boardChrome    = 2 // blank line + status bar below the column area
 	maxScrollOff   = 1<<31 - 1
+	tickInterval   = 30 * time.Second // how often durations refresh
 )
 
 // Board is the top-level bubbletea model.
@@ -86,7 +87,7 @@ func (b *Board) SetNow(fn func() time.Time) {
 
 // Init implements tea.Model.
 func (b *Board) Init() tea.Cmd {
-	return nil
+	return tickCmd()
 }
 
 // Update implements tea.Model.
@@ -101,6 +102,8 @@ func (b *Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ReloadMsg:
 		b.loadTasks()
 		return b, nil
+	case TickMsg:
+		return b, tickCmd()
 	case errMsg:
 		b.err = msg.err
 		return b, nil
@@ -497,6 +500,13 @@ func (b *Board) WatchPaths() []string {
 type ReloadMsg struct{}
 
 type errMsg struct{ err error }
+
+// TickMsg is sent periodically to refresh duration displays.
+type TickMsg struct{}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(tickInterval, func(time.Time) tea.Msg { return TickMsg{} })
+}
 
 // --- Styles ---
 
