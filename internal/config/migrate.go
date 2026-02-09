@@ -39,6 +39,7 @@ func migrate(cfg *Config) error {
 var migrations = map[int]func(*Config) error{
 	1: migrateV1ToV2,
 	2: migrateV2ToV3,
+	3: migrateV3ToV4,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -59,5 +60,14 @@ func migrateV2ToV3(cfg *Config) error { //nolint:unparam // signature must match
 		cfg.Defaults.Class = DefaultClass
 	}
 	cfg.Version = 3
+	return nil
+}
+
+// migrateV3ToV4 adds the tui section with title_lines default.
+func migrateV3ToV4(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	if cfg.TUI.TitleLines == 0 {
+		cfg.TUI.TitleLines = DefaultTitleLines
+	}
+	cfg.Version = 4
 	return nil
 }

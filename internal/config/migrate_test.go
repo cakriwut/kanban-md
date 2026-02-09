@@ -58,6 +58,7 @@ func TestMigrateV1ToCurrentVersion(t *testing.T) {
 	cfg.ClaimTimeout = ""
 	cfg.Classes = nil
 	cfg.Defaults.Class = ""
+	cfg.TUI = TUIConfig{}
 
 	if err := migrate(cfg); err != nil {
 		t.Fatalf("migrate() v1→current: %v", err)
@@ -90,5 +91,21 @@ func TestMigrateV2ToV3(t *testing.T) {
 	}
 	if cfg.Defaults.Class != DefaultClass {
 		t.Errorf("Defaults.Class = %q, want %q", cfg.Defaults.Class, DefaultClass)
+	}
+}
+
+func TestMigrateV3ToV4(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 3
+	cfg.TUI = TUIConfig{} // Clear to test migration sets default.
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v3→v4: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
 	}
 }

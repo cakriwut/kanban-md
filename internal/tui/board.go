@@ -34,7 +34,6 @@ const (
 	keyUp   = "up"
 
 	tagMaxFraction = 2 // tags get at most 1/N of card width
-	cardHeight     = 4 // top border + 2 content lines + bottom border
 	boardChrome    = 2 // blank line + status bar below the column area
 	maxScrollOff   = 1<<31 - 1
 )
@@ -324,6 +323,12 @@ func (b *Board) selectedTask() *task.Task {
 	return nil
 }
 
+// cardHeight returns the height of a single card in lines:
+// top border + title lines + 1 detail line + bottom border.
+func (b *Board) cardHeight() int {
+	return b.cfg.TitleLines() + 3 //nolint:mnd // borders(2) + detail line(1)
+}
+
 func (b *Board) clampRow() {
 	col := b.currentColumn()
 	if col == nil || len(col.tasks) == 0 {
@@ -354,7 +359,8 @@ func (b *Board) visibleCardsForColumn(col *column) int {
 	}
 
 	// Compute cards assuming no down indicator.
-	n := avail / cardHeight
+	ch := b.cardHeight()
+	n := avail / ch
 	if n < 1 {
 		n = 1
 	}
@@ -362,7 +368,7 @@ func (b *Board) visibleCardsForColumn(col *column) int {
 	// Check if down indicator is needed.
 	if col.scrollOff+n < len(col.tasks) {
 		// Re-compute with 1 fewer line for the down indicator.
-		n = (avail - 1) / cardHeight
+		n = (avail - 1) / ch
 		if n < 1 {
 			n = 1
 		}
@@ -648,9 +654,30 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 		cardWidth = 1
 	}
 
+	titleLines := b.cfg.TitleLines()
 	idStr := dimStyle.Render("#" + strconv.Itoa(t.ID))
-	title := truncate(t.Title, cardWidth-len(strconv.Itoa(t.ID))-2) //nolint:mnd // id prefix + space
-	line1 := idStr + " " + title
+	idLen := len(strconv.Itoa(t.ID)) + 1    // "#" + digits
+	firstLineWidth := cardWidth - idLen - 1 // space after id
+	if firstLineWidth < 1 {
+		firstLineWidth = 1
+	}
+
+	var contentLines []string
+	if titleLines == 1 {
+		title := truncate(t.Title, firstLineWidth)
+		contentLines = append(contentLines, idStr+" "+title)
+	} else {
+		wrapped := wrapTitle(t.Title, firstLineWidth, titleLines)
+		contentLines = append(contentLines, idStr+" "+wrapped[0])
+		padding := strings.Repeat(" ", idLen+1)
+		for i := 1; i < len(wrapped); i++ {
+			contentLines = append(contentLines, padding+wrapped[i])
+		}
+		// Pad to exactly titleLines for uniform card height.
+		for len(contentLines) < titleLines {
+			contentLines = append(contentLines, "")
+		}
+	}
 
 	// Priority + tags line.
 	var details []string
@@ -677,9 +704,9 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 		details = append(details, dimStyle.Render("due:"+t.Due.String()))
 	}
 
-	line2 := strings.Join(details, " ")
+	contentLines = append(contentLines, strings.Join(details, " "))
 
-	content := line1 + "\n" + line2
+	content := strings.Join(contentLines, "\n")
 
 	// Pick style.
 	style := cardStyle
@@ -691,6 +718,48 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	}
 
 	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+}
+
+// wrapTitle splits a title across maxLines lines, word-wrapping at word
+// boundaries. Each line is at most maxWidth characters.
+func wrapTitle(title string, maxWidth, maxLines int) []string {
+	if maxLines < 1 {
+		maxLines = 1
+	}
+	if len(title) <= maxWidth || maxLines == 1 {
+		return []string{truncate(title, maxWidth)}
+	}
+
+	words := strings.Fields(title)
+	lines := make([]string, 0, maxLines)
+	var current strings.Builder
+
+	for i, word := range words {
+		if current.Len() == 0 {
+			current.WriteString(word)
+			continue
+		}
+		if current.Len()+1+len(word) <= maxWidth {
+			current.WriteByte(' ')
+			current.WriteString(word)
+		} else {
+			lines = append(lines, truncate(current.String(), maxWidth))
+			current.Reset()
+			current.WriteString(word)
+			if len(lines) == maxLines-1 {
+				// Last line: append all remaining words.
+				for _, w := range words[i+1:] {
+					current.WriteByte(' ')
+					current.WriteString(w)
+				}
+				break
+			}
+		}
+	}
+	if current.Len() > 0 {
+		lines = append(lines, truncate(current.String(), maxWidth))
+	}
+	return lines
 }
 
 func (b *Board) renderStatusBar() string {

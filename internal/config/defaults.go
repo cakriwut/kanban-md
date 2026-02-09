@@ -14,12 +14,14 @@ const (
 	DefaultClass = "standard"
 	// DefaultClaimTimeout is the default claim expiration as a duration string.
 	DefaultClaimTimeout = "1h"
+	// DefaultTitleLines is the default number of title lines in TUI cards.
+	DefaultTitleLines = 1
 
 	// ConfigFileName is the name of the config file within the kanban directory.
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 3
+	CurrentVersion = 4
 )
 
 // Default slice values for a new board (slices cannot be const).

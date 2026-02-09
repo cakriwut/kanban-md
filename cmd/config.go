@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -105,6 +106,19 @@ func configAccessors() map[string]configAccessor {
 				return c.WIPLimits
 			},
 		},
+		"tui.title_lines": {
+			get: func(c *config.Config) any { return c.TUI.TitleLines },
+			set: func(c *config.Config, v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil {
+					return clierr.Newf(clierr.InvalidInput,
+						"invalid tui.title_lines %q: must be an integer", v)
+				}
+				c.TUI.TitleLines = n
+				return nil // validation handles range check
+			},
+			writable: true,
+		},
 	}
 }
 
@@ -120,6 +134,7 @@ func allConfigKeys() []string {
 		"defaults.status",
 		"defaults.priority",
 		"wip_limits",
+		"tui.title_lines",
 		"next_id",
 	}
 }

@@ -31,6 +31,7 @@ type Config struct {
 	WIPLimits    map[string]int `yaml:"wip_limits,omitempty"`
 	ClaimTimeout string         `yaml:"claim_timeout,omitempty"`
 	Classes      []ClassConfig  `yaml:"classes,omitempty"`
+	TUI          TUIConfig      `yaml:"tui,omitempty"`
 	NextID       int            `yaml:"next_id"`
 
 	// dir is the absolute path to the kanban directory (not serialized).
@@ -48,6 +49,11 @@ type DefaultsConfig struct {
 	Status   string `yaml:"status"`
 	Priority string `yaml:"priority"`
 	Class    string `yaml:"class,omitempty"`
+}
+
+// TUIConfig holds TUI-specific display settings.
+type TUIConfig struct {
+	TitleLines int `yaml:"title_lines,omitempty"`
 }
 
 // ClassConfig defines a class of service and its WIP rules.
@@ -82,6 +88,7 @@ func NewDefault(name string) *Config {
 		Priorities:   append([]string{}, DefaultPriorities...),
 		Classes:      append([]ClassConfig{}, DefaultClasses...),
 		ClaimTimeout: DefaultClaimTimeout,
+		TUI:          TUIConfig{TitleLines: DefaultTitleLines},
 		Defaults: DefaultsConfig{
 			Status:   DefaultStatus,
 			Priority: DefaultPriority,
@@ -131,10 +138,11 @@ func (c *Config) Validate() error {
 	if err := c.validateClasses(); err != nil {
 		return err
 	}
-	if c.ClaimTimeout != "" {
-		if _, err := time.ParseDuration(c.ClaimTimeout); err != nil {
-			return fmt.Errorf("%w: invalid claim_timeout %q: %w", ErrInvalid, c.ClaimTimeout, err)
-		}
+	if err := c.validateClaimTimeout(); err != nil {
+		return err
+	}
+	if err := c.validateTUI(); err != nil {
+		return err
 	}
 	if c.NextID < 1 {
 		return fmt.Errorf("%w: next_id must be >= 1", ErrInvalid)
@@ -177,6 +185,24 @@ func (c *Config) validateClasses() error {
 	return nil
 }
 
+func (c *Config) validateClaimTimeout() error {
+	if c.ClaimTimeout != "" {
+		if _, err := time.ParseDuration(c.ClaimTimeout); err != nil {
+			return fmt.Errorf("%w: invalid claim_timeout %q: %w", ErrInvalid, c.ClaimTimeout, err)
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateTUI() error {
+	const maxTitleLines = 3
+	if c.TUI.TitleLines < DefaultTitleLines || c.TUI.TitleLines > maxTitleLines {
+		return fmt.Errorf("%w: tui.title_lines must be between %d and %d",
+			ErrInvalid, DefaultTitleLines, maxTitleLines)
+	}
+	return nil
+}
+
 // WIPLimit returns the WIP limit for a status, or 0 (unlimited).
 func (c *Config) WIPLimit(status string) int {
 	if c.WIPLimits == nil {
@@ -196,6 +222,15 @@ func (c *Config) ClaimTimeoutDuration() time.Duration {
 		return 0
 	}
 	return d
+}
+
+// TitleLines returns the configured number of title lines for TUI cards.
+// Returns DefaultTitleLines if the value is unset (zero).
+func (c *Config) TitleLines() int {
+	if c.TUI.TitleLines == 0 {
+		return DefaultTitleLines
+	}
+	return c.TUI.TitleLines
 }
 
 // ClassByName returns the ClassConfig for the given name, or nil if not found.

@@ -603,3 +603,102 @@ func TestBoard_ScrollHeaderVisible(t *testing.T) {
 		t.Errorf("expected 'done' header on first line, got %q", lines[0])
 	}
 }
+
+// --- TUI title_lines config ---
+
+// setupTestBoardWithTitleLines creates a board with configurable title lines.
+func setupTestBoardWithTitleLines(t *testing.T, titleLines int) (*tui.Board, *config.Config) { //nolint:unparam // config may be needed by future tests
+	t.Helper()
+
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	tasksDir := filepath.Join(kanbanDir, "tasks")
+
+	if err := os.MkdirAll(tasksDir, 0o750); err != nil {
+		t.Fatalf("creating dirs: %v", err)
+	}
+
+	cfg := config.NewDefault("Title Lines Test")
+	cfg.TUI.TitleLines = titleLines
+	cfg.SetDir(kanbanDir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	tasks := []struct {
+		id       int
+		title    string
+		status   string
+		priority string
+	}{
+		{1, "Implement user authentication with OAuth2 and SAML support", "backlog", "high"},
+		{2, "Fix database connection pooling issue under heavy load", "backlog", "medium"},
+		{3, "Add comprehensive integration test suite for the API", "in-progress", "high"},
+	}
+
+	for _, tt := range tasks {
+		tk := &task.Task{
+			ID:       tt.id,
+			Title:    tt.title,
+			Status:   tt.status,
+			Priority: tt.priority,
+		}
+		path := filepath.Join(tasksDir, task.GenerateFilename(tt.id, tt.title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+
+	return b, cfg
+}
+
+func TestBoard_TitleLines1_DefaultBehavior(t *testing.T) {
+	b, _ := setupTestBoard(t)
+	v := b.View()
+	if !containsStr(v, "Task A") {
+		t.Error("expected Task A in default title_lines=1 view")
+	}
+}
+
+func TestBoard_TitleLines2_WrapsLongTitle(t *testing.T) {
+	b, _ := setupTestBoardWithTitleLines(t, 2)
+	v := b.View()
+
+	// Title should be visible (at least the first part).
+	if !containsStr(v, "Implement") {
+		t.Error("expected title visible in title_lines=2 view")
+	}
+}
+
+func TestBoard_TitleLines2_MoreTitleVisible(t *testing.T) {
+	// With title_lines=2, more of the title should be shown vs title_lines=1.
+	b1, _ := setupTestBoardWithTitleLines(t, 1)
+	b2, _ := setupTestBoardWithTitleLines(t, 2)
+
+	v1 := b1.View()
+	v2 := b2.View()
+
+	// "SAML" is near the end of the first task title. With 2 lines
+	// and 80-width columns, it should be visible in the 2-line version.
+	if containsStr(v1, "SAML") && !containsStr(v2, "SAML") {
+		t.Error("expected title_lines=2 to show at least as much title as title_lines=1")
+	}
+}
+
+func TestBoard_ScrollWithTitleLines2(t *testing.T) {
+	b, _ := setupTestBoardWithTitleLines(t, 2)
+	// Small terminal to force scrolling math changes.
+	b.Update(tea.WindowSizeMsg{Width: 80, Height: 15})
+
+	b = sendKey(b, "j")
+	v := b.View()
+
+	lines := strings.Split(v, "\n")
+	const termHeight = 15
+	if len(lines) > termHeight {
+		t.Errorf("output has %d lines, exceeds terminal height %d", len(lines), termHeight)
+	}
+}

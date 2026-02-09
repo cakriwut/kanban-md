@@ -23,6 +23,12 @@ func TestNewDefault(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("Validate() error: %v", err)
 	}
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+	if cfg.TitleLines() != DefaultTitleLines {
+		t.Errorf("TitleLines() = %d, want %d", cfg.TitleLines(), DefaultTitleLines)
+	}
 }
 
 func TestValidate(t *testing.T) {
@@ -45,6 +51,12 @@ func TestValidate(t *testing.T) {
 		{"wip unknown status", func(c *Config) { c.WIPLimits = map[string]int{"bogus": 3} }, true},
 		{"wip negative limit", func(c *Config) { c.WIPLimits = map[string]int{"in-progress": -1} }, true},
 		{"wip zero limit", func(c *Config) { c.WIPLimits = map[string]int{"in-progress": 0} }, false},
+		{"valid tui.title_lines=1", func(c *Config) { c.TUI.TitleLines = 1 }, false},
+		{"valid tui.title_lines=2", func(c *Config) { c.TUI.TitleLines = 2 }, false},
+		{"valid tui.title_lines=3", func(c *Config) { c.TUI.TitleLines = 3 }, false},
+		{"tui.title_lines=0", func(c *Config) { c.TUI.TitleLines = 0 }, true},
+		{"tui.title_lines=4", func(c *Config) { c.TUI.TitleLines = 4 }, true},
+		{"tui.title_lines=-1", func(c *Config) { c.TUI.TitleLines = -1 }, true},
 	}
 
 	for _, tt := range tests {

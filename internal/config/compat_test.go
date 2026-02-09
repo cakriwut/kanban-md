@@ -125,6 +125,10 @@ func TestCompatV1ConfigMigratesToCurrentVersion(t *testing.T) {
 	if cfg.Defaults.Class != DefaultClass {
 		t.Errorf("Defaults.Class = %q, want %q (from v2→v3 migration)", cfg.Defaults.Class, DefaultClass)
 	}
+	// v3→v4 migration should also have run.
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d (from v3→v4 migration)", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
 }
 
 func TestCompatV2Config(t *testing.T) {
@@ -196,6 +200,54 @@ func TestCompatV2ConfigMigratesToV3(t *testing.T) {
 	}
 }
 
+func TestCompatV3Config(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v3")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v3 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v3" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v3")
+	}
+	// v3 config has no tui section; migration should set default.
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+}
+
+func TestCompatV3ConfigMigratesToV4(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v3")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v3 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+	if cfg.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+	// Existing v3 fields should be preserved.
+	if cfg.ClaimTimeout != "1h" {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, "1h")
+	}
+	const expectedClasses = 4
+	if len(cfg.Classes) != expectedClasses {
+		t.Errorf("Classes len = %d, want %d", len(cfg.Classes), expectedClasses)
+	}
+}
+
 func TestMigrationPersistsToDisk(t *testing.T) {
 	// Verify that after Load() migrates a v1 config, the on-disk file
 	// is updated to the current version so re-migration is avoided.
@@ -232,6 +284,9 @@ func TestMigrationPersistsToDisk(t *testing.T) {
 	}
 	if raw.Defaults.Class != DefaultClass {
 		t.Errorf("Persisted Defaults.Class = %q, want %q", raw.Defaults.Class, DefaultClass)
+	}
+	if raw.TUI.TitleLines != DefaultTitleLines {
+		t.Errorf("Persisted TUI.TitleLines = %d, want %d", raw.TUI.TitleLines, DefaultTitleLines)
 	}
 	const wantName = "Test Project"
 	if raw.Board.Name != wantName {
