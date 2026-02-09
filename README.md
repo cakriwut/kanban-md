@@ -79,7 +79,7 @@ kanban-md show 1
 kanban-md move 1 done
 
 # Or delete it
-kanban-md delete 3 --force
+kanban-md delete 3 --yes
 ```
 
 ## How it works
@@ -258,7 +258,6 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--claim` | Claim task for an agent (set claimed_by) |
 | `--release` | Release claim on task |
 | `--class` | Set class of service |
-| `-f`, `--force` | Override WIP limits and claims |
 
 ### `move`
 
@@ -276,18 +275,17 @@ kanban-md move 1,2,3 todo          # batch move
 | `--next` | Advance to next status in the configured order |
 | `--prev` | Move back to previous status |
 | `--claim` | Claim task for an agent |
-| `--force` | Override WIP limits and claims |
 
 ### `delete`
 
 Delete a task. Aliases: `rm`.
 
 ```bash
-kanban-md delete ID [--force]
-kanban-md delete 1,2,3 --force     # batch delete
+kanban-md delete ID [--yes]
+kanban-md delete 1,2,3 --yes       # batch delete
 ```
 
-Prompts for confirmation in interactive terminals. Use `--force` to skip the prompt (required in non-interactive contexts like scripts). Batch delete always requires `--force`.
+Prompts for confirmation in interactive terminals. Use `--yes` (`-y`) to skip the prompt (required in non-interactive contexts like scripts). Batch delete always requires `--yes`.
 
 ### `archive`
 
@@ -560,7 +558,7 @@ kanban-md pick --claim agent-1 --move in-progress
 kanban-md move 5 review --claim agent-1
 
 # Agent finishes and releases
-kanban-md edit 5 --release --force
+kanban-md edit 5 --release
 kanban-md move 5 done
 
 # Another agent picks from a specific queue

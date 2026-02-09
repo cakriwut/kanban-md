@@ -75,11 +75,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// Check WIP limit for the target status (class-aware).
 	if t.Class != "" && len(cfg.Classes) > 0 {
-		if err := enforceWIPLimitForClass(cfg, t, "", t.Status, false); err != nil {
+		if err := enforceWIPLimitForClass(cfg, t, "", t.Status); err != nil {
 			return err
 		}
 	} else {
-		if err := enforceWIPLimit(cfg, "", t.Status, false); err != nil {
+		if err := enforceWIPLimit(cfg, "", t.Status); err != nil {
 			return err
 		}
 	}

@@ -410,7 +410,7 @@ func TestLogActivity_WritesLogEntry(t *testing.T) {
 
 func TestCheckClaim_Unclaimed(t *testing.T) {
 	tk := &task.Task{ID: 1}
-	err := checkClaim(tk, "", false, 0)
+	err := checkClaim(tk, "", 0)
 	if err != nil {
 		t.Errorf("expected nil for unclaimed task, got %v", err)
 	}
@@ -421,7 +421,7 @@ func TestCheckClaim_SameClaimant(t *testing.T) {
 	now := time.Now()
 	tk.ClaimedAt = &now
 
-	err := checkClaim(tk, "agent-1", false, time.Hour)
+	err := checkClaim(tk, "agent-1", time.Hour)
 	if err != nil {
 		t.Errorf("expected nil for same claimant, got %v", err)
 	}
@@ -432,7 +432,7 @@ func TestCheckClaim_DifferentClaimant(t *testing.T) {
 	now := time.Now()
 	tk.ClaimedAt = &now
 
-	err := checkClaim(tk, "agent-2", false, time.Hour)
+	err := checkClaim(tk, "agent-2", time.Hour)
 	if err == nil {
 		t.Fatal("expected error for different claimant")
 	}
@@ -445,26 +445,12 @@ func TestCheckClaim_DifferentClaimant(t *testing.T) {
 	}
 }
 
-func TestCheckClaim_Force(t *testing.T) {
-	tk := &task.Task{ID: 1, ClaimedBy: "agent-1"}
-	now := time.Now()
-	tk.ClaimedAt = &now
-
-	err := checkClaim(tk, "agent-2", true, time.Hour)
-	if err != nil {
-		t.Errorf("expected nil with force, got %v", err)
-	}
-	if tk.ClaimedBy != "" {
-		t.Errorf("expected claim to be cleared with force, got %q", tk.ClaimedBy)
-	}
-}
-
 func TestCheckClaim_Expired(t *testing.T) {
 	tk := &task.Task{ID: 1, ClaimedBy: "agent-1"}
 	past := time.Now().Add(-2 * time.Hour)
 	tk.ClaimedAt = &past
 
-	err := checkClaim(tk, "agent-2", false, time.Hour)
+	err := checkClaim(tk, "agent-2", time.Hour)
 	if err != nil {
 		t.Errorf("expected nil for expired claim, got %v", err)
 	}

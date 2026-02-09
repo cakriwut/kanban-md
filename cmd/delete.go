@@ -21,13 +21,13 @@ var deleteCmd = &cobra.Command{
 	Aliases: []string{"rm"},
 	Short:   "Delete a task",
 	Long: `Deletes a task file. Prompts for confirmation in interactive mode.
-Multiple IDs can be provided as a comma-separated list (requires --force).`,
+Multiple IDs can be provided as a comma-separated list (requires --yes).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDelete,
 }
 
 func init() {
-	deleteCmd.Flags().BoolP("force", "f", false, "skip confirmation prompt")
+	deleteCmd.Flags().BoolP("yes", "y", false, "skip confirmation prompt")
 	rootCmd.AddCommand(deleteCmd)
 }
 
@@ -42,27 +42,27 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	force, _ := cmd.Flags().GetBool("force")
+	yes, _ := cmd.Flags().GetBool("yes")
 
-	// Batch mode requires --force.
-	if len(ids) > 1 && !force {
+	// Batch mode requires --yes.
+	if len(ids) > 1 && !yes {
 		return clierr.New(clierr.ConfirmationReq,
-			"batch delete requires --force")
+			"batch delete requires --yes")
 	}
 
 	// Single ID: preserve exact current behavior.
 	if len(ids) == 1 {
-		return deleteSingleTask(cfg, ids[0], force)
+		return deleteSingleTask(cfg, ids[0], yes)
 	}
 
-	// Batch mode (force is guaranteed true here).
+	// Batch mode (yes is guaranteed true here).
 	return runBatch(ids, func(id int) error {
-		return executeDelete(cfg, id, force)
+		return executeDelete(cfg, id)
 	})
 }
 
 // deleteSingleTask handles a single task delete with confirmation and output.
-func deleteSingleTask(cfg *config.Config, id int, force bool) error {
+func deleteSingleTask(cfg *config.Config, id int, yes bool) error {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return err
@@ -74,18 +74,18 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 	}
 
 	// Check claim before allowing delete.
-	if err = checkClaim(t, "", force, cfg.ClaimTimeoutDuration()); err != nil {
+	if err = checkClaim(t, "", cfg.ClaimTimeoutDuration()); err != nil {
 		return err
 	}
 
 	// Warn if other tasks reference this one as a dependency or parent.
 	warnDependents(cfg.TasksPath(), t.ID)
 
-	// Require confirmation in TTY mode unless --force.
-	if !force {
+	// Require confirmation in TTY mode unless --yes.
+	if !yes {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			return clierr.New(clierr.ConfirmationReq,
-				"cannot prompt for confirmation (not a terminal); use --force")
+				"cannot prompt for confirmation (not a terminal); use --yes")
 		}
 		fmt.Fprintf(os.Stderr, "Delete task #%d %q? [y/N] ", t.ID, t.Title)
 		reader := bufio.NewReader(os.Stdin)
@@ -114,7 +114,7 @@ func deleteSingleTask(cfg *config.Config, id int, force bool) error {
 }
 
 // executeDelete performs the core delete: find, read, claim check, warn dependents, remove, log.
-func executeDelete(cfg *config.Config, id int, force bool) error {
+func executeDelete(cfg *config.Config, id int) error {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func executeDelete(cfg *config.Config, id int, force bool) error {
 		return err
 	}
 
-	if err = checkClaim(t, "", force, cfg.ClaimTimeoutDuration()); err != nil {
+	if err = checkClaim(t, "", cfg.ClaimTimeoutDuration()); err != nil {
 		return err
 	}
 

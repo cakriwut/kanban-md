@@ -40,7 +40,6 @@ func newEditCmd() *cobra.Command {
 	cmd.Flags().String("claim", "", "")
 	cmd.Flags().Bool("release", false, "")
 	cmd.Flags().String("class", "", "")
-	cmd.Flags().BoolP("force", "f", false, "")
 	return cmd
 }
 

@@ -130,7 +130,7 @@ git branch -d task/<ID>-<short-description>
 **Only after the merge is on main**, release the claim and move to **done**:
 
 ```bash
-kanban-md edit <ID> --release --force
+kanban-md edit <ID> --release
 kanban-md move <ID> done
 ```
 
@@ -157,12 +157,12 @@ Statuses have strict meanings. Never skip ahead.
 |---|---|---|---|
 | `in-progress` | Agent is actively working | `pick --claim --move in-progress` | Tests + lint pass, code committed |
 | `review` | Code committed, awaiting merge to main | `move <ID> review --claim <name>` | Branch merged into main |
-| `done` | Merged into main | `edit <ID> --release --force` then `move <ID> done` | Never |
+| `done` | Merged into main | `edit <ID> --release` then `move <ID> done` | Never |
 
 To abandon a task: release the claim and move back to `todo`:
 
 ```bash
-kanban-md edit <ID> --release --force
+kanban-md edit <ID> --release
 kanban-md move <ID> todo
 ```
 
@@ -187,7 +187,7 @@ Then write release notes per the project guidelines (see CLAUDE.md / AGENTS.md).
 - **Only pick unclaimed tasks.** Use `pick` or `list --unclaimed`. Never manually select a task that is already claimed by someone else.
 - **Never override another agent's claim.** If a task is claimed, it belongs to that agent. Pick a different task.
 - **If `pick` fails, pick again.** Another agent got there first. This is normal in a multi-agent environment. Just run `pick` again for the next available task.
-- **Release claims when done or abandoning.** Always `edit <ID> --release --force` before moving to `done` or back to `todo`.
+- **Release claims when done or abandoning.** Always `edit <ID> --release` before moving to `done` or back to `todo`.
 
 ### Status discipline
 

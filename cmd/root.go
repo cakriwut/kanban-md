@@ -147,8 +147,8 @@ func logActivity(cfg *config.Config, action string, taskID int, detail string) {
 }
 
 // checkClaim verifies that a mutating operation is allowed on a claimed task.
-func checkClaim(t *task.Task, claimant string, force bool, timeout time.Duration) error {
-	return task.CheckClaim(t, claimant, force, timeout)
+func checkClaim(t *task.Task, claimant string, timeout time.Duration) error {
+	return task.CheckClaim(t, claimant, timeout)
 }
 
 // validateDeps validates parent and dependency references for a task.

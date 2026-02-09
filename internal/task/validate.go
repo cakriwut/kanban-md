@@ -109,7 +109,7 @@ func ValidateClaimRequired(status string) *clierr.Error {
 // ValidateTaskClaimed returns a CLIError when a task is claimed by another agent.
 func ValidateTaskClaimed(id int, claimedBy, remaining string) *clierr.Error {
 	return clierr.Newf(clierr.TaskClaimed,
-		"task #%d is claimed by %q (expires in %s). Use --force to override",
+		"task #%d is claimed by %q (expires in %s). Use 'edit --release' to release",
 		id, claimedBy, remaining).
 		WithDetails(map[string]any{
 			"id":         id,
@@ -130,9 +130,9 @@ func ValidateClassWIPExceeded(class string, limit, current int) *clierr.Error {
 }
 
 // CheckClaim verifies that a mutating operation is allowed on a claimed task.
-// If the task is unclaimed, claimed by the same agent, expired, or force is set,
-// the operation proceeds. Otherwise, returns a TaskClaimed error.
-func CheckClaim(t *Task, claimant string, force bool, timeout time.Duration) error {
+// If the task is unclaimed, claimed by the same agent, or expired, the operation
+// proceeds. Otherwise, returns a TaskClaimed error.
+func CheckClaim(t *Task, claimant string, timeout time.Duration) error {
 	if t.ClaimedBy == "" {
 		return nil
 	}
@@ -140,11 +140,6 @@ func CheckClaim(t *Task, claimant string, force bool, timeout time.Duration) err
 		return nil
 	}
 	if timeout > 0 && t.ClaimedAt != nil && time.Since(*t.ClaimedAt) > timeout {
-		t.ClaimedBy = ""
-		t.ClaimedAt = nil
-		return nil
-	}
-	if force {
 		t.ClaimedBy = ""
 		t.ClaimedAt = nil
 		return nil

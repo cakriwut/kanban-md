@@ -48,7 +48,6 @@ func init() {
 	editCmd.Flags().String("claim", "", "claim task for an agent")
 	editCmd.Flags().Bool("release", false, "release claim on task")
 	editCmd.Flags().String("class", "", "set class of service")
-	editCmd.Flags().BoolP("force", "f", false, "override WIP limits and claims")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -63,23 +62,21 @@ func runEdit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	force, _ := cmd.Flags().GetBool("force")
-
 	// Single ID: preserve exact current behavior.
 	if len(ids) == 1 {
-		return editSingleTask(cfg, ids[0], cmd, force)
+		return editSingleTask(cfg, ids[0], cmd)
 	}
 
 	// Batch mode.
 	return runBatch(ids, func(id int) error {
-		_, _, err := executeEdit(cfg, id, cmd, force)
+		_, _, err := executeEdit(cfg, id, cmd)
 		return err
 	})
 }
 
 // editSingleTask handles a single task edit with full output.
-func editSingleTask(cfg *config.Config, id int, cmd *cobra.Command, force bool) error {
-	t, newPath, err := executeEdit(cfg, id, cmd, force)
+func editSingleTask(cfg *config.Config, id int, cmd *cobra.Command) error {
+	t, newPath, err := executeEdit(cfg, id, cmd)
 	if err != nil {
 		return err
 	}
@@ -95,7 +92,7 @@ func editSingleTask(cfg *config.Config, id int, cmd *cobra.Command, force bool) 
 
 // executeEdit performs the core edit: find, read, apply, validate, write, log.
 // Returns the modified task and its new file path.
-func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*task.Task, string, error) {
+func executeEdit(cfg *config.Config, id int, cmd *cobra.Command) (*task.Task, string, error) {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return nil, "", err
@@ -106,7 +103,7 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", err
 	}
 
-	claimant, release, err := validateEditClaim(cfg, t, cmd, force)
+	claimant, release, err := validateEditClaim(cfg, t, cmd)
 	if err != nil {
 		return nil, "", err
 	}
@@ -124,7 +121,7 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", clierr.New(clierr.NoChanges, "no changes specified")
 	}
 
-	if err = validateEditPost(cfg, t, oldStatus, claimant, force); err != nil {
+	if err = validateEditPost(cfg, t, oldStatus, claimant); err != nil {
 		return nil, "", err
 	}
 
@@ -140,11 +137,15 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 }
 
 // validateEditClaim checks claim ownership and require_claim before allowing edits.
-func validateEditClaim(cfg *config.Config, t *task.Task, cmd *cobra.Command, force bool) (string, bool, error) {
+// The --release flag bypasses claim checks since its intent is to release a claim.
+func validateEditClaim(cfg *config.Config, t *task.Task, cmd *cobra.Command) (string, bool, error) {
 	claimant, _ := cmd.Flags().GetString("claim")
 	release, _ := cmd.Flags().GetBool("release")
-	if err := checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
-		return "", false, err
+	// --release bypasses claim check — its purpose is to release a (possibly foreign) claim.
+	if !release {
+		if err := checkClaim(t, claimant, cfg.ClaimTimeoutDuration()); err != nil {
+			return "", false, err
+		}
 	}
 	// Enforce require_claim for the task's current status.
 	if cfg.StatusRequiresClaim(t.Status) && claimant == "" && !release {
@@ -168,7 +169,7 @@ func applyEditChanges(cmd *cobra.Command, t *task.Task, cfg *config.Config, clai
 }
 
 // validateEditPost runs post-edit validations: deps, require_claim for new status, WIP limits.
-func validateEditPost(cfg *config.Config, t *task.Task, oldStatus, claimant string, force bool) error {
+func validateEditPost(cfg *config.Config, t *task.Task, oldStatus, claimant string) error {
 	if err := validateDeps(cfg, t); err != nil {
 		return err
 	}
@@ -179,9 +180,9 @@ func validateEditPost(cfg *config.Config, t *task.Task, oldStatus, claimant stri
 	// Check WIP limit if status changed (class-aware).
 	if t.Status != oldStatus {
 		if t.Class != "" && len(cfg.Classes) > 0 {
-			return enforceWIPLimitForClass(cfg, t, oldStatus, t.Status, force)
+			return enforceWIPLimitForClass(cfg, t, oldStatus, t.Status)
 		}
-		return enforceWIPLimit(cfg, oldStatus, t.Status, force)
+		return enforceWIPLimit(cfg, oldStatus, t.Status)
 	}
 	return nil
 }

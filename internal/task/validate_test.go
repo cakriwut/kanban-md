@@ -148,7 +148,6 @@ func TestCheckClaimAllowed(t *testing.T) {
 		name      string
 		task      Task
 		claimant  string
-		force     bool
 		timeout   time.Duration
 		wantClear bool // expect ClaimedBy/ClaimedAt cleared
 	}{
@@ -170,20 +169,6 @@ func TestCheckClaimAllowed(t *testing.T) {
 			timeout:   defaultTimeout,
 			wantClear: true,
 		},
-		{
-			name:      "force overrides active claim and clears fields",
-			task:      Task{ID: 5, ClaimedBy: "agent-1", ClaimedAt: &recentTime},
-			claimant:  "agent-2",
-			force:     true,
-			timeout:   defaultTimeout,
-			wantClear: true,
-		},
-		{
-			name:    "force on unclaimed task is a no-op",
-			task:    Task{ID: 10, ClaimedBy: ""},
-			force:   true,
-			timeout: defaultTimeout,
-		},
 	}
 
 	for _, tt := range tests {
@@ -194,7 +179,7 @@ func TestCheckClaimAllowed(t *testing.T) {
 				tk.ClaimedAt = &cp
 			}
 
-			err := CheckClaim(&tk, tt.claimant, tt.force, tt.timeout)
+			err := CheckClaim(&tk, tt.claimant, tt.timeout)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -257,7 +242,7 @@ func TestCheckClaimBlocked(t *testing.T) {
 				tk.ClaimedAt = &cp
 			}
 
-			err := CheckClaim(&tk, tt.claimant, false, tt.timeout)
+			err := CheckClaim(&tk, tt.claimant, tt.timeout)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -279,7 +264,7 @@ func TestCheckClaimErrorDetails(t *testing.T) {
 	recentTime := time.Now().Add(-10 * time.Minute)
 	tk := &Task{ID: 42, ClaimedBy: "agent-x", ClaimedAt: &recentTime}
 
-	err := CheckClaim(tk, "other-agent", false, time.Hour)
+	err := CheckClaim(tk, "other-agent", time.Hour)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -310,7 +295,7 @@ func TestCheckClaimRemainingUnknown(t *testing.T) {
 	// When ClaimedAt is nil and timeout > 0, remaining should be "unknown".
 	tk := &Task{ID: 1, ClaimedBy: "agent-1", ClaimedAt: nil}
 
-	err := CheckClaim(tk, "other", false, time.Hour)
+	err := CheckClaim(tk, "other", time.Hour)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

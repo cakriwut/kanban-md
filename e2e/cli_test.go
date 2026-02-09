@@ -877,22 +877,6 @@ func TestMoveRespectsWIPLimit(t *testing.T) {
 	}
 }
 
-func TestMoveForceOverridesWIP(t *testing.T) {
-	kanbanDir := initBoardWithWIP(t, 1)
-
-	mustCreateTask(t, kanbanDir, "Task A")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
-
-	mustCreateTask(t, kanbanDir, "Task B")
-	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--force", "--claim", claimTestAgent)
-	if r.exitCode != 0 {
-		t.Fatalf("exit code = %d, want 0 with --force\nstderr: %s", r.exitCode, r.stderr)
-	}
-	if !strings.Contains(r.stderr, "Warning") {
-		t.Errorf("stderr = %q, want WIP warning", r.stderr)
-	}
-}
-
 func TestCreateRespectsWIPLimit(t *testing.T) {
 	kanbanDir := initBoardWithWIP(t, 2)
 
@@ -917,28 +901,6 @@ func TestEditStatusRespectsWIPLimit(t *testing.T) {
 	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress", "--claim", claimTestAgent)
 	if errResp.Code != codeWIPLimitExceeded {
 		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
-	}
-}
-
-func TestEditForceOverridesWIP(t *testing.T) {
-	kanbanDir := initBoardWithWIP(t, 1)
-
-	mustCreateTask(t, kanbanDir, "Task A", "--status", "in-progress")
-	mustCreateTask(t, kanbanDir, "Task B")
-
-	// Without --force, edit should fail.
-	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress", "--claim", claimTestAgent)
-	if errResp.Code != codeWIPLimitExceeded {
-		t.Fatalf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
-	}
-
-	// With --force, edit should succeed with a warning.
-	r := runKanban(t, kanbanDir, "edit", "2", "--status", "in-progress", "--force", "--claim", claimTestAgent)
-	if r.exitCode != 0 {
-		t.Fatalf("exit code = %d, want 0 with --force\nstderr: %s", r.exitCode, r.stderr)
-	}
-	if !strings.Contains(r.stderr, "Warning") {
-		t.Errorf("stderr = %q, want WIP warning", r.stderr)
 	}
 }
 
@@ -1335,7 +1297,7 @@ func TestDeleteWithDependentsWarns(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Dep task")                          // #1
 	mustCreateTask(t, kanbanDir, "Depends on 1", "--depends-on", "1") // #2
 
-	r := runKanban(t, kanbanDir, "--json", "delete", "1", "--force")
+	r := runKanban(t, kanbanDir, "--json", "delete", "1", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("delete failed: %s", r.stderr)
 	}
@@ -1348,12 +1310,12 @@ func TestDeleteWithDependentsWarns(t *testing.T) {
 // Delete tests
 // ---------------------------------------------------------------------------
 
-func TestDeleteWithForce(t *testing.T) {
+func TestDeleteWithYes(t *testing.T) {
 	kanbanDir := initBoard(t)
 	created := mustCreateTask(t, kanbanDir, "Doomed task")
 
 	var got map[string]interface{}
-	r := runKanbanJSON(t, kanbanDir, &got, "delete", "1", "--force")
+	r := runKanbanJSON(t, kanbanDir, &got, "delete", "1", "--yes")
 
 	if r.exitCode != 0 {
 		t.Fatalf("delete failed: %s", r.stderr)
@@ -1368,7 +1330,7 @@ func TestDeleteWithForce(t *testing.T) {
 	}
 }
 
-func TestDeleteWithoutForceNonTTY(t *testing.T) {
+func TestDeleteWithoutYesNonTTY(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Protected task")
 
@@ -1397,7 +1359,7 @@ func TestNoInitErrors(t *testing.T) {
 		{"show", []string{"show", "1"}},
 		{"edit", []string{"edit", "1", "--title", "New"}},
 		{"move", []string{"move", "1", "done"}},
-		{"delete", []string{"delete", "1", "--force"}},
+		{"delete", []string{"delete", "1", "--yes"}},
 	}
 
 	for _, tt := range commands {
@@ -1438,7 +1400,7 @@ func TestCommandAliases(t *testing.T) {
 
 	// rm = delete
 	var deleted map[string]interface{}
-	r = runKanbanJSON(t, kanbanDir, &deleted, "rm", "1", "--force")
+	r = runKanbanJSON(t, kanbanDir, &deleted, "rm", "1", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("'rm' alias failed: %s", r.stderr)
 	}
@@ -1488,7 +1450,7 @@ func TestFullLifecycle(t *testing.T) {
 
 	// Delete.
 	var deleted map[string]interface{}
-	runKanbanJSON(t, kanbanDir, &deleted, "delete", "1", "--force")
+	runKanbanJSON(t, kanbanDir, &deleted, "delete", "1", "--yes")
 	if deleted["status"] != statusDeleted {
 		t.Errorf("delete: status = %v, want %q", deleted["status"], statusDeleted)
 	}
@@ -2086,7 +2048,7 @@ func TestLogAfterEdit(t *testing.T) {
 func TestLogAfterDelete(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Deletable")
-	runKanban(t, kanbanDir, "--json", "delete", "1", "--force")
+	runKanban(t, kanbanDir, "--json", "delete", "1", "--yes")
 
 	var entries []logEntry
 	runKanbanJSON(t, kanbanDir, &entries, "log")
@@ -2631,7 +2593,7 @@ func TestBatchDeleteMultiple(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task C")
 
 	var results []batchResultJSON
-	runKanbanJSON(t, kanbanDir, &results, "delete", "1,2,3", "--force")
+	runKanbanJSON(t, kanbanDir, &results, "delete", "1,2,3", "--yes")
 
 	if len(results) != 3 {
 		t.Fatalf("results = %d, want 3", len(results))
@@ -2694,7 +2656,7 @@ func TestBatchDeleteWarnsDependents(t *testing.T) {
 	runKanban(t, kanbanDir, "edit", "2", "--add-dep", "1")
 
 	// Batch delete A and C — should warn about B depending on A.
-	r := runKanban(t, kanbanDir, "delete", "1,3", "--force")
+	r := runKanban(t, kanbanDir, "delete", "1,3", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("exit code = %d, want 0\nstderr: %s", r.exitCode, r.stderr)
 	}
@@ -2703,7 +2665,7 @@ func TestBatchDeleteWarnsDependents(t *testing.T) {
 	}
 }
 
-func TestBatchDeleteRequiresForce(t *testing.T) {
+func TestBatchDeleteRequiresYes(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Task A")
 	mustCreateTask(t, kanbanDir, "Task B")
@@ -2712,8 +2674,8 @@ func TestBatchDeleteRequiresForce(t *testing.T) {
 	if errResp.Code != "CONFIRMATION_REQUIRED" {
 		t.Errorf("code = %q, want CONFIRMATION_REQUIRED", errResp.Code)
 	}
-	if !strings.Contains(errResp.Error, "batch delete requires --force") {
-		t.Errorf("error = %q, want 'batch delete requires --force'", errResp.Error)
+	if !strings.Contains(errResp.Error, "batch delete requires --yes") {
+		t.Errorf("error = %q, want 'batch delete requires --yes'", errResp.Error)
 	}
 }
 
@@ -2808,7 +2770,7 @@ func TestTableFlagOutputDelete(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Deletable task")
 
-	r := runKanban(t, kanbanDir, "--table", "delete", "1", "--force")
+	r := runKanban(t, kanbanDir, "--table", "delete", "1", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("delete failed: %s", r.stderr)
 	}
@@ -2911,7 +2873,7 @@ func TestREADMEDocumentsAllCommands(t *testing.T) {
 		"edit": {
 			"--started", "--clear-started", "--completed", "--clear-completed",
 			"--parent", "--clear-parent", "--add-dep", "--remove-dep",
-			"--block", "--unblock", "--claim", "--release", "--class", "--force",
+			"--block", "--unblock", "--claim", "--release", "--class",
 		},
 		"move":    {"--claim"},
 		"list":    {"--blocked", "--not-blocked", "--parent", "--unblocked", "--unclaimed", "--claimed-by", "--class", "--group-by"},
@@ -3528,7 +3490,7 @@ claimed_at: 2099-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Another agent (no --force) tries to move — should fail.
+	// Another agent tries to move — should fail.
 	r := runKanban(t, kanbanDir, "move", "1", "in-progress")
 	if r.exitCode == 0 {
 		t.Fatal("move should fail when task is claimed by another agent")
@@ -3554,7 +3516,7 @@ claimed_at: 2099-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Edit without --force or matching --claim should fail.
+	// Edit without matching --claim should fail.
 	r := runKanban(t, kanbanDir, "edit", "1", "--priority", "low")
 	if r.exitCode == 0 {
 		t.Fatal("edit should fail when task is claimed by another agent")
@@ -3577,7 +3539,7 @@ claimed_at: 2099-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Delete without --force should fail.
+	// Delete should fail when task is claimed.
 	r := runKanban(t, kanbanDir, "delete", "1")
 	if r.exitCode == 0 {
 		t.Fatal("delete should fail when task is claimed by another agent")
@@ -3646,8 +3608,8 @@ claimed_at: 2020-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Delete requires --force in non-TTY for confirmation bypass.
-	r := runKanban(t, kanbanDir, "delete", "1", "--force")
+	// Delete requires --yes in non-TTY for confirmation bypass.
+	r := runKanban(t, kanbanDir, "delete", "1", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("delete should succeed for expired claim, got exit %d: %s", r.exitCode, r.stderr)
 	}
@@ -3675,75 +3637,6 @@ claimed_at: 2099-01-01T00:00:00Z
 	r := runKanban(t, kanbanDir, "move", "1", "in-progress")
 	if r.exitCode == 0 {
 		t.Fatal("move should fail — claim has not expired yet")
-	}
-}
-
-func TestForceOverridesActiveClaim(t *testing.T) {
-	kanbanDir := initBoard(t)
-
-	writeTaskFile(t, kanbanDir, 1, `---
-id: 1
-title: Force override test
-status: todo
-priority: high
-created: 2026-01-01T00:00:00Z
-updated: 2026-01-01T00:00:00Z
-claimed_by: agent-alpha
-claimed_at: 2099-01-01T00:00:00Z
----
-`)
-	bumpNextID(t, kanbanDir, 2)
-
-	// Move with --force should succeed despite active claim. --claim required for in-progress.
-	r := runKanban(t, kanbanDir, "move", "1", "in-progress", "--force", "--claim", claimTestAgent)
-	if r.exitCode != 0 {
-		t.Fatalf("move --force should succeed, got exit %d: %s", r.exitCode, r.stderr)
-	}
-}
-
-func TestForceOverridesActiveClaimEdit(t *testing.T) {
-	kanbanDir := initBoard(t)
-
-	writeTaskFile(t, kanbanDir, 1, `---
-id: 1
-title: Force edit test
-status: todo
-priority: high
-created: 2026-01-01T00:00:00Z
-updated: 2026-01-01T00:00:00Z
-claimed_by: agent-alpha
-claimed_at: 2099-01-01T00:00:00Z
----
-`)
-	bumpNextID(t, kanbanDir, 2)
-
-	// Edit with --force should succeed.
-	r := runKanban(t, kanbanDir, "edit", "1", "--priority", "low", "--force")
-	if r.exitCode != 0 {
-		t.Fatalf("edit --force should succeed, got exit %d: %s", r.exitCode, r.stderr)
-	}
-}
-
-func TestForceOverridesActiveClaimDelete(t *testing.T) {
-	kanbanDir := initBoard(t)
-
-	writeTaskFile(t, kanbanDir, 1, `---
-id: 1
-title: Force delete test
-status: todo
-priority: high
-created: 2026-01-01T00:00:00Z
-updated: 2026-01-01T00:00:00Z
-claimed_by: agent-alpha
-claimed_at: 2099-01-01T00:00:00Z
----
-`)
-	bumpNextID(t, kanbanDir, 2)
-
-	// Delete with --force should succeed.
-	r := runKanban(t, kanbanDir, "delete", "1", "--force")
-	if r.exitCode != 0 {
-		t.Fatalf("delete --force should succeed, got exit %d: %s", r.exitCode, r.stderr)
 	}
 }
 
@@ -4429,33 +4322,6 @@ updated: 2026-01-01T00:00:00Z
 	}
 }
 
-func TestExpediteWIPForceOverride(t *testing.T) {
-	kanbanDir := initBoardWithWIP(t, 1)
-	mustCreateTask(t, kanbanDir, "Expedite 1", "--class", "expedite")
-
-	// Write a second expedite task file directly to bypass create-time WIP check.
-	writeTaskFile(t, kanbanDir, 2, `---
-id: 2
-title: Expedite 2
-status: backlog
-priority: medium
-class: expedite
-created: 2026-01-01T00:00:00Z
-updated: 2026-01-01T00:00:00Z
----
-`)
-	bumpNextID(t, kanbanDir, 3)
-
-	r := runKanban(t, kanbanDir, "move", "2", "todo", "--force")
-	if r.exitCode != 0 {
-		t.Fatalf("force move failed (exit %d): %s", r.exitCode, r.stderr)
-	}
-	// Stderr should contain the override warning.
-	if !strings.Contains(r.stderr, "overridden") {
-		t.Error("expected force override warning in stderr")
-	}
-}
-
 func TestCreateExpediteClassWIPCheck(t *testing.T) {
 	kanbanDir := initBoard(t)
 	// Create an expedite task.
@@ -4511,7 +4377,7 @@ func TestDeleteJSONOutput(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Delete JSON test")
 
 	var result map[string]interface{}
-	r := runKanbanJSON(t, kanbanDir, &result, "delete", "1", "--force")
+	r := runKanbanJSON(t, kanbanDir, &result, "delete", "1", "--yes")
 	if r.exitCode != 0 {
 		t.Fatalf("delete --json failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4524,9 +4390,9 @@ func TestDeleteTableOutput(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Delete table test")
 
-	r := runKanban(t, kanbanDir, "delete", "1", "--force")
+	r := runKanban(t, kanbanDir, "delete", "1", "--yes")
 	if r.exitCode != 0 {
-		t.Fatalf("delete --force failed (exit %d): %s", r.exitCode, r.stderr)
+		t.Fatalf("delete --yes failed (exit %d): %s", r.exitCode, r.stderr)
 	}
 	if !strings.Contains(r.stdout, "Deleted task #1") {
 		t.Error("table output should contain 'Deleted task #1'")
@@ -4910,9 +4776,9 @@ func TestRequireClaimExplicitRelease(t *testing.T) {
 
 	// Only explicit release clears the claim.
 	var released taskJSON
-	r := runKanbanJSON(t, kanbanDir, &released, "edit", "1", "--release", "--force")
+	r := runKanbanJSON(t, kanbanDir, &released, "edit", "1", "--release")
 	if r.exitCode != 0 {
-		t.Fatalf("edit --release --force failed (exit %d): stdout=%s stderr=%s", r.exitCode, r.stdout, r.stderr)
+		t.Fatalf("edit --release failed (exit %d): stdout=%s stderr=%s", r.exitCode, r.stdout, r.stderr)
 	}
 	if released.ClaimedBy != "" {
 		t.Errorf("claimed_by after release = %q, want empty", released.ClaimedBy)
@@ -5136,13 +5002,13 @@ claimed_at: 2020-01-01T00:00:00Z
 	}
 }
 
-func TestRequireClaimReleaseWithForce(t *testing.T) {
+func TestRequireClaimReleaseBypassesChecks(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Release edit test")
 	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimAgent1)
 
-	// Release the claim. Use --force to bypass claim check (--release exempts require_claim).
-	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--release", "--force")
+	// Release the claim. --release bypasses claim check and require_claim.
+	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--release")
 	if r.exitCode != 0 {
 		t.Fatalf("release failed (exit %d): %s", r.exitCode, r.stderr)
 	}

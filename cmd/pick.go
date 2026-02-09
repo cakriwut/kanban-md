@@ -96,7 +96,7 @@ func executePick(cfg *config.Config, claimant, statusFilter, moveTarget, tag str
 	// Optionally move the task.
 	oldStatus := ""
 	if moveTarget != "" && picked.Status != moveTarget {
-		if moveErr := enforceWIPLimit(cfg, picked.Status, moveTarget, false); moveErr != nil {
+		if moveErr := enforceWIPLimit(cfg, picked.Status, moveTarget); moveErr != nil {
 			return nil, "", moveErr
 		}
 		oldStatus = picked.Status

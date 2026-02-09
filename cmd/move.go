@@ -28,7 +28,6 @@ func init() {
 	moveCmd.Flags().Bool("next", false, "move to next status")
 	moveCmd.Flags().Bool("prev", false, "move to previous status")
 	moveCmd.Flags().String("claim", "", "claim task for an agent during move")
-	moveCmd.Flags().BoolP("force", "f", false, "override WIP limits and claims")
 	rootCmd.AddCommand(moveCmd)
 }
 
@@ -49,9 +48,8 @@ func runMove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Batch mode.
-	force, _ := cmd.Flags().GetBool("force")
 	return runBatch(ids, func(id int) error {
-		_, _, err := executeMove(cfg, id, cmd, args, force)
+		_, _, err := executeMove(cfg, id, cmd, args)
 		return err
 	})
 }
@@ -64,9 +62,7 @@ type moveResult struct {
 
 // moveSingleTask handles a single task move with full output.
 func moveSingleTask(cfg *config.Config, id int, cmd *cobra.Command, args []string) error {
-	force, _ := cmd.Flags().GetBool("force")
-
-	t, oldStatus, err := executeMove(cfg, id, cmd, args, force)
+	t, oldStatus, err := executeMove(cfg, id, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -87,7 +83,7 @@ func moveSingleTask(cfg *config.Config, id int, cmd *cobra.Command, args []strin
 // executeMove performs the core move: find, read, resolve, wip check, write, log.
 // Returns (task, oldStatus, error). If the task was already at the target status
 // (idempotent), oldStatus is empty and the task is returned unchanged.
-func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, force bool) (*task.Task, string, error) {
+func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string) (*task.Task, string, error) {
 	path, err := task.FindByID(cfg.TasksPath(), id)
 	if err != nil {
 		return nil, "", err
@@ -99,7 +95,7 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 	}
 
 	claimant, _ := cmd.Flags().GetString("claim")
-	if err = validateMoveClaim(cfg, t, claimant, force); err != nil {
+	if err = validateMoveClaim(cfg, t, claimant); err != nil {
 		return nil, "", err
 	}
 
@@ -118,7 +114,7 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 		return nil, "", task.ValidateClaimRequired(newStatus)
 	}
 
-	if err = enforceMoveWIP(cfg, t, newStatus, force); err != nil {
+	if err = enforceMoveWIP(cfg, t, newStatus); err != nil {
 		return nil, "", err
 	}
 
@@ -142,16 +138,16 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 }
 
 // validateMoveClaim checks claim ownership before allowing a move.
-func validateMoveClaim(cfg *config.Config, t *task.Task, claimant string, force bool) error {
-	return checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration())
+func validateMoveClaim(cfg *config.Config, t *task.Task, claimant string) error {
+	return checkClaim(t, claimant, cfg.ClaimTimeoutDuration())
 }
 
 // enforceMoveWIP checks WIP limits, considering class of service.
-func enforceMoveWIP(cfg *config.Config, t *task.Task, newStatus string, force bool) error {
+func enforceMoveWIP(cfg *config.Config, t *task.Task, newStatus string) error {
 	if t.Class != "" && len(cfg.Classes) > 0 {
-		return enforceWIPLimitForClass(cfg, t, t.Status, newStatus, force)
+		return enforceWIPLimitForClass(cfg, t, t.Status, newStatus)
 	}
-	return enforceWIPLimit(cfg, t.Status, newStatus, force)
+	return enforceWIPLimit(cfg, t.Status, newStatus)
 }
 
 // applyMoveClaim sets the claim on the task if --claim flag was provided.
@@ -193,9 +189,8 @@ func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *c
 	}
 }
 
-// enforceWIPLimit checks if the target status has room. If force is true,
-// it warns instead of erroring.
-func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, force bool) error {
+// enforceWIPLimit checks if the target status has room.
+func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string) error {
 	limit := cfg.WIPLimit(targetStatus)
 	if limit == 0 {
 		return nil
@@ -207,19 +202,12 @@ func enforceWIPLimit(cfg *config.Config, currentStatus, targetStatus string, for
 	}
 
 	counts := board.CountByStatus(allTasks)
-	if err := checkWIPLimit(cfg, counts, targetStatus, currentStatus); err != nil {
-		if force {
-			fmt.Fprintf(os.Stderr, "Warning: %s (overridden with --force)\n", err)
-			return nil
-		}
-		return err
-	}
-	return nil
+	return checkWIPLimit(cfg, counts, targetStatus, currentStatus)
 }
 
 // enforceWIPLimitForClass checks WIP limits considering class of service.
 // Expedite tasks bypass column WIP limits but have their own board-wide limit.
-func enforceWIPLimitForClass(cfg *config.Config, t *task.Task, currentStatus, targetStatus string, force bool) error {
+func enforceWIPLimitForClass(cfg *config.Config, t *task.Task, currentStatus, targetStatus string) error {
 	classConf := cfg.ClassByName(t.Class)
 
 	// Check class-level board-wide WIP limit.
@@ -230,11 +218,6 @@ func enforceWIPLimitForClass(cfg *config.Config, t *task.Task, currentStatus, ta
 		}
 		count := countByClass(allTasks, t.Class, t.ID)
 		if count >= classConf.WIPLimit {
-			if force {
-				fmt.Fprintf(os.Stderr, "Warning: %s WIP limit reached (%d/%d board-wide, overridden with --force)\n",
-					t.Class, count, classConf.WIPLimit)
-				return nil
-			}
 			return task.ValidateClassWIPExceeded(t.Class, classConf.WIPLimit, count)
 		}
 	}
@@ -245,7 +228,7 @@ func enforceWIPLimitForClass(cfg *config.Config, t *task.Task, currentStatus, ta
 	}
 
 	// Normal column WIP check.
-	return enforceWIPLimit(cfg, currentStatus, targetStatus, force)
+	return enforceWIPLimit(cfg, currentStatus, targetStatus)
 }
 
 // countByClass counts tasks with a given class, excluding a specific task ID.
