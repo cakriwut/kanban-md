@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -48,6 +49,12 @@ type configAccessor struct {
 }
 
 func configAccessors() map[string]configAccessor {
+	accessors := baseConfigAccessors()
+	addExtendedConfigAccessors(accessors)
+	return accessors
+}
+
+func baseConfigAccessors() map[string]configAccessor {
 	return map[string]configAccessor{
 		"board.name": {
 			get:      func(c *config.Config) any { return c.Board.Name },
@@ -106,19 +113,56 @@ func configAccessors() map[string]configAccessor {
 				return c.WIPLimits
 			},
 		},
-		"tui.title_lines": {
-			get: func(c *config.Config) any { return c.TUI.TitleLines },
-			set: func(c *config.Config, v string) error {
-				n, err := strconv.Atoi(v)
-				if err != nil {
-					return clierr.Newf(clierr.InvalidInput,
-						"invalid tui.title_lines %q: must be an integer", v)
-				}
-				c.TUI.TitleLines = n
-				return nil // validation handles range check
-			},
-			writable: true,
+	}
+}
+
+func addExtendedConfigAccessors(accessors map[string]configAccessor) {
+	accessors["defaults.class"] = configAccessor{
+		get: func(c *config.Config) any { return c.Defaults.Class },
+		set: func(c *config.Config, v string) error {
+			if v == "" {
+				c.Defaults.Class = ""
+				return nil
+			}
+			if c.ClassByName(v) == nil {
+				return clierr.Newf(clierr.InvalidInput,
+					"invalid default class %q; allowed: %s", v, strings.Join(c.ClassNames(), ", "))
+			}
+			c.Defaults.Class = v
+			return nil
 		},
+		writable: true,
+	}
+	accessors["claim_timeout"] = configAccessor{
+		get: func(c *config.Config) any { return c.ClaimTimeout },
+		set: func(c *config.Config, v string) error {
+			if _, err := time.ParseDuration(v); err != nil {
+				return clierr.Newf(clierr.InvalidInput,
+					"invalid claim_timeout %q: %v", v, err)
+			}
+			c.ClaimTimeout = v
+			return nil
+		},
+		writable: true,
+	}
+	accessors["classes"] = configAccessor{
+		get: func(c *config.Config) any { return c.Classes },
+	}
+	accessors["tui.title_lines"] = configAccessor{
+		get: func(c *config.Config) any { return c.TUI.TitleLines },
+		set: func(c *config.Config, v string) error {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return clierr.Newf(clierr.InvalidInput,
+					"invalid tui.title_lines %q: must be an integer", v)
+			}
+			c.TUI.TitleLines = n
+			return nil // validation handles range check
+		},
+		writable: true,
+	}
+	accessors["tui.age_thresholds"] = configAccessor{
+		get: func(c *config.Config) any { return c.TUI.AgeThresholds },
 	}
 }
 
@@ -133,8 +177,12 @@ func allConfigKeys() []string {
 		"priorities",
 		"defaults.status",
 		"defaults.priority",
+		"defaults.class",
 		"wip_limits",
+		"claim_timeout",
+		"classes",
 		"tui.title_lines",
+		"tui.age_thresholds",
 		"next_id",
 	}
 }

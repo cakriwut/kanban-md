@@ -2210,8 +2210,9 @@ func TestConfigShowAll(t *testing.T) {
 	// Verify expected keys are present.
 	expectedKeys := []string{
 		"version", "board.name", "board.description", "tasks_dir",
-		"statuses", "priorities", "defaults.status", "defaults.priority",
-		"wip_limits", "next_id",
+		"statuses", "priorities", "defaults.status", "defaults.priority", "defaults.class",
+		"wip_limits", "claim_timeout", "classes",
+		"tui.title_lines", "tui.age_thresholds", "next_id",
 	}
 	for _, key := range expectedKeys {
 		if _, ok := cfg[key]; !ok {
@@ -2275,6 +2276,30 @@ func TestConfigSetBoardName(t *testing.T) {
 	}
 }
 
+func TestConfigSetClaimTimeout(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	runKanban(t, kanbanDir, "--json", "config", "set", "claim_timeout", "2h")
+
+	var val string
+	runKanbanJSON(t, kanbanDir, &val, "config", "get", "claim_timeout")
+	if val != "2h" {
+		t.Errorf("claim_timeout = %q, want %q", val, "2h")
+	}
+}
+
+func TestConfigSetDefaultsClass(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	runKanban(t, kanbanDir, "--json", "config", "set", "defaults.class", "expedite")
+
+	var val string
+	runKanbanJSON(t, kanbanDir, &val, "config", "get", "defaults.class")
+	if val != "expedite" {
+		t.Errorf("defaults.class = %q, want %q", val, "expedite")
+	}
+}
+
 func TestConfigSetReadOnlyKey(t *testing.T) {
 	kanbanDir := initBoard(t)
 
@@ -2308,6 +2333,18 @@ func TestConfigSetInvalidDefaultStatus(t *testing.T) {
 	}
 	if !strings.Contains(errResp.Error, "invalid default status") {
 		t.Errorf("error = %q, want 'invalid default status'", errResp.Error)
+	}
+}
+
+func TestConfigSetInvalidClaimTimeout(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	errResp := runKanbanJSONError(t, kanbanDir, "config", "set", "claim_timeout", "soon")
+	if errResp.Code != codeInvalidInput {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
+	}
+	if !strings.Contains(errResp.Error, "invalid claim_timeout") {
+		t.Errorf("error = %q, want 'invalid claim_timeout'", errResp.Error)
 	}
 }
 

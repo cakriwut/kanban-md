@@ -6,6 +6,8 @@ import (
 	"github.com/antopolskiy/kanban-md/internal/config"
 )
 
+const classExpedite = "expedite"
+
 // --- configAccessors tests ---
 
 func TestConfigAccessors_AllKeysHaveAccessors(t *testing.T) {
@@ -15,6 +17,36 @@ func TestConfigAccessors_AllKeysHaveAccessors(t *testing.T) {
 	for _, key := range keys {
 		if _, ok := accessors[key]; !ok {
 			t.Errorf("allConfigKeys contains %q but no accessor exists", key)
+		}
+	}
+}
+
+func TestAllConfigKeys_ExpectedCoverage(t *testing.T) {
+	keys := allConfigKeys()
+	expected := []string{
+		"version",
+		"board.name",
+		"board.description",
+		"tasks_dir",
+		"statuses",
+		"priorities",
+		"defaults.status",
+		"defaults.priority",
+		"defaults.class",
+		"wip_limits",
+		"claim_timeout",
+		"classes",
+		"tui.title_lines",
+		"tui.age_thresholds",
+		"next_id",
+	}
+
+	if len(keys) != len(expected) {
+		t.Fatalf("allConfigKeys len = %d, want %d", len(keys), len(expected))
+	}
+	for i := range expected {
+		if keys[i] != expected[i] {
+			t.Fatalf("allConfigKeys[%d] = %q, want %q", i, keys[i], expected[i])
 		}
 	}
 }
@@ -85,6 +117,50 @@ func TestConfigAccessors_SetDefaultsPriority_Invalid(t *testing.T) {
 	}
 }
 
+func TestConfigAccessors_SetDefaultsClass_Valid(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if err := accessors["defaults.class"].set(cfg, classExpedite); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Defaults.Class != classExpedite {
+		t.Errorf("defaults.class = %q, want %q", cfg.Defaults.Class, classExpedite)
+	}
+}
+
+func TestConfigAccessors_SetDefaultsClass_Invalid(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	err := accessors["defaults.class"].set(cfg, "ultra")
+	if err == nil {
+		t.Fatal("expected error for invalid default class")
+	}
+}
+
+func TestConfigAccessors_SetClaimTimeout(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if err := accessors["claim_timeout"].set(cfg, "2h"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ClaimTimeout != "2h" {
+		t.Errorf("claim_timeout = %q, want %q", cfg.ClaimTimeout, "2h")
+	}
+}
+
+func TestConfigAccessors_SetClaimTimeout_Invalid(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	err := accessors["claim_timeout"].set(cfg, "soon")
+	if err == nil {
+		t.Fatal("expected error for invalid claim_timeout")
+	}
+}
+
 func TestConfigAccessors_SetTUITitleLines(t *testing.T) {
 	accessors := configAccessors()
 	cfg := config.NewDefault("Test")
@@ -109,7 +185,10 @@ func TestConfigAccessors_SetTUITitleLines_Invalid(t *testing.T) {
 
 func TestConfigAccessors_ReadOnlyKeys(t *testing.T) {
 	accessors := configAccessors()
-	readOnlyKeys := []string{"statuses", "priorities", "tasks_dir", "next_id", "version", "wip_limits"}
+	readOnlyKeys := []string{
+		"statuses", "priorities", "tasks_dir", "next_id", "version",
+		"wip_limits", "classes", "tui.age_thresholds",
+	}
 
 	for _, key := range readOnlyKeys {
 		acc, ok := accessors[key]
@@ -125,7 +204,10 @@ func TestConfigAccessors_ReadOnlyKeys(t *testing.T) {
 
 func TestConfigAccessors_WritableKeys(t *testing.T) {
 	accessors := configAccessors()
-	writableKeys := []string{"board.name", "board.description", "defaults.status", "defaults.priority", "tui.title_lines"}
+	writableKeys := []string{
+		"board.name", "board.description", "defaults.status", "defaults.priority",
+		"defaults.class", "claim_timeout", "tui.title_lines",
+	}
 
 	for _, key := range writableKeys {
 		acc, ok := accessors[key]
