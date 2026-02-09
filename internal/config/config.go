@@ -68,6 +68,7 @@ type TUIConfig struct {
 type StatusConfig struct {
 	Name         string `yaml:"name" json:"name"`
 	RequireClaim bool   `yaml:"require_claim,omitempty" json:"require_claim,omitempty"`
+	ShowDuration *bool  `yaml:"show_duration,omitempty" json:"show_duration,omitempty"`
 }
 
 // UnmarshalYAML allows StatusConfig to be parsed from either a plain string
@@ -146,6 +147,20 @@ func (c *Config) StatusRequiresClaim(status string) bool {
 		}
 	}
 	return false
+}
+
+// StatusShowDuration returns whether the given status column should display
+// task age/duration. If not explicitly configured, returns true (show by default).
+func (c *Config) StatusShowDuration(status string) bool {
+	for _, s := range c.Statuses {
+		if s.Name == status {
+			if s.ShowDuration == nil {
+				return true
+			}
+			return *s.ShowDuration
+		}
+	}
+	return true
 }
 
 // Validate checks the config for errors.
