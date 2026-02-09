@@ -2,12 +2,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/tui"
 	"github.com/antopolskiy/kanban-md/internal/watcher"
@@ -23,7 +28,16 @@ func main() {
 func run() error {
 	cfg, err := findConfig()
 	if err != nil {
-		return err
+		// If no board found, offer to create one.
+		var cliErr *clierr.Error
+		if errors.As(err, &cliErr) && cliErr.Code == clierr.BoardNotFound {
+			cfg, err = offerInit()
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
 	model := tui.NewBoard(cfg)
@@ -37,6 +51,32 @@ func run() error {
 
 	_, err = p.Run()
 	return err
+}
+
+func offerInit() (*config.Config, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getting working directory: %w", err)
+	}
+	name := filepath.Base(cwd)
+	kanbanDir := filepath.Join(cwd, config.DefaultDir)
+
+	fmt.Printf("No kanban board found. Create one in %s? [Y/n] ", kanbanDir)
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+
+	if answer != "" && answer != "y" && answer != "yes" {
+		return nil, errors.New("no board found — run 'kanban-md init' to create one")
+	}
+
+	cfg, err := config.Init(kanbanDir, name)
+	if err != nil {
+		return nil, fmt.Errorf("initializing board: %w", err)
+	}
+
+	fmt.Printf("Board %q created in %s\n", name, kanbanDir)
+	return cfg, nil
 }
 
 func startWatcher(ctx context.Context, model *tui.Board, p *tea.Program) {

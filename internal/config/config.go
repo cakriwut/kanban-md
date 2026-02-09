@@ -227,6 +227,30 @@ func (c *Config) ClassIndex(class string) int {
 	return -1
 }
 
+// Init creates a new kanban board in the given directory with default settings.
+// It creates the kanban directory, tasks subdirectory, and config file.
+func Init(dir, name string) (*Config, error) {
+	const dirMode = 0o750
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving path: %w", err)
+	}
+
+	cfg := NewDefault(name)
+	cfg.SetDir(absDir)
+
+	if err := os.MkdirAll(cfg.TasksPath(), dirMode); err != nil {
+		return nil, fmt.Errorf("creating tasks directory: %w", err)
+	}
+
+	if err := cfg.Save(); err != nil {
+		return nil, fmt.Errorf("writing config: %w", err)
+	}
+
+	return cfg, nil
+}
+
 // Save writes the config to its config file.
 func (c *Config) Save() error {
 	data, err := yaml.Marshal(c)
