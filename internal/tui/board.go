@@ -516,6 +516,8 @@ var (
 
 	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
+	claimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("44")).Bold(true)
+
 	detailLabelStyle = lipgloss.NewStyle().Bold(true).Width(14) //nolint:mnd // label column width
 
 	dialogPadY = 1
@@ -650,7 +652,7 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	}
 
 	if t.ClaimedBy != "" {
-		details = append(details, dimStyle.Render("@"+t.ClaimedBy))
+		details = append(details, claimStyle.Render("@"+t.ClaimedBy))
 	}
 
 	if t.Due != nil {
@@ -751,7 +753,7 @@ func detailLines(t *task.Task, width int) []string {
 	lines = append(lines, detailLabelStyle.Render("Updated:")+"  "+t.Updated.Format("2006-01-02 15:04"))
 
 	if t.ClaimedBy != "" {
-		lines = append(lines, detailLabelStyle.Render("Claimed:")+"  "+t.ClaimedBy)
+		lines = append(lines, detailLabelStyle.Render("Claimed:")+"  "+claimStyle.Render(t.ClaimedBy))
 	}
 	if t.Started != nil {
 		lines = append(lines, detailLabelStyle.Render("Started:")+"  "+t.Started.Format("2006-01-02 15:04"))
