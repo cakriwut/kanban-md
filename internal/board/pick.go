@@ -57,7 +57,7 @@ func pickCandidates(cfg *config.Config, tasks []*task.Task, opts PickOptions) []
 
 // filterPickDeps removes tasks with unmet dependencies using the full task set.
 func filterPickDeps(cfg *config.Config, allTasks, candidates []*task.Task) []*task.Task {
-	if len(cfg.Statuses) == 0 {
+	if len(cfg.StatusNames()) == 0 {
 		return candidates
 	}
 	statusByID := make(map[int]string, len(allTasks))

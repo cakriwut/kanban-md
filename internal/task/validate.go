@@ -97,6 +97,15 @@ func ValidateClass(class string, allowed []string) error {
 		})
 }
 
+// ValidateClaimRequired returns a CLIError when a status requires --claim but none was provided.
+func ValidateClaimRequired(status string) *clierr.Error {
+	return clierr.Newf(clierr.ClaimRequired,
+		"status %q requires --claim <name>", status).
+		WithDetails(map[string]any{
+			"status": status,
+		})
+}
+
 // ValidateTaskClaimed returns a CLIError when a task is claimed by another agent.
 func ValidateTaskClaimed(id int, claimedBy, remaining string) *clierr.Error {
 	return clierr.Newf(clierr.TaskClaimed,

@@ -21,7 +21,7 @@ const (
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 6
+	CurrentVersion = 7
 
 	// ArchivedStatus is the reserved status name for soft-deleted tasks.
 	ArchivedStatus = "archived"
@@ -29,13 +29,13 @@ const (
 
 // Default slice values for a new board (slices cannot be const).
 var (
-	DefaultStatuses = []string{
-		"backlog",
-		"todo",
-		"in-progress",
-		"review",
-		"done",
-		ArchivedStatus,
+	DefaultStatuses = []StatusConfig{
+		{Name: "backlog"},
+		{Name: "todo"},
+		{Name: "in-progress", RequireClaim: true},
+		{Name: "review", RequireClaim: true},
+		{Name: "done"},
+		{Name: ArchivedStatus},
 	}
 
 	DefaultPriorities = []string{

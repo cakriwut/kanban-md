@@ -96,10 +96,10 @@ git commit -m "feat: <description>"
 Now move the task to **review**. This signals: "code is complete and committed, awaiting merge to main."
 
 ```bash
-kanban-md move <ID> review --force
+kanban-md move <ID> review --claim <your-agent-name>
 ```
 
-(Use `--force` because you hold the claim — the move command requires it for claimed tasks.)
+(Use `--claim` with your agent name — `in-progress` and `review` require `--claim` by default.)
 
 **The task MUST stay in `review` until it is merged into main.** Do not move it to `done` yet.
 
@@ -131,7 +131,7 @@ git branch -d task/<ID>-<short-description>
 
 ```bash
 kanban-md edit <ID> --release --force
-kanban-md move <ID> done --force
+kanban-md move <ID> done
 ```
 
 #### If main is NOT clean
@@ -156,14 +156,14 @@ Statuses have strict meanings. Never skip ahead.
 | Status | Meaning | Enters when | Leaves when |
 |---|---|---|---|
 | `in-progress` | Agent is actively working | `pick --claim --move in-progress` | Tests + lint pass, code committed |
-| `review` | Code committed, awaiting merge to main | `move <ID> review --force` | Branch merged into main |
-| `done` | Merged into main | `edit <ID> --release --force` then `move <ID> done --force` | Never |
+| `review` | Code committed, awaiting merge to main | `move <ID> review --claim <name>` | Branch merged into main |
+| `done` | Merged into main | `edit <ID> --release --force` then `move <ID> done` | Never |
 
 To abandon a task: release the claim and move back to `todo`:
 
 ```bash
 kanban-md edit <ID> --release --force
-kanban-md move <ID> todo --force
+kanban-md move <ID> todo
 ```
 
 ### 7. Release
@@ -183,8 +183,9 @@ Then write release notes per the project guidelines (see CLAUDE.md / AGENTS.md).
 ### Claiming (most important — prevents duplicate work)
 
 - **Always claim before working.** Never start work on a task without claiming it first. Use `pick --claim` to do this atomically.
+- **Always use `--claim <name>` when moving tasks.** The `in-progress` and `review` statuses require `--claim` by default. The CLI enforces this — moves without `--claim` will fail.
 - **Only pick unclaimed tasks.** Use `pick` or `list --unclaimed`. Never manually select a task that is already claimed by someone else.
-- **Never override another agent's claim.** If a task is claimed, it belongs to that agent. Pick a different task. Do not use `--force` to steal claims.
+- **Never override another agent's claim.** If a task is claimed, it belongs to that agent. Pick a different task.
 - **If `pick` fails, pick again.** Another agent got there first. This is normal in a multi-agent environment. Just run `pick` again for the next available task.
 - **Release claims when done or abandoning.** Always `edit <ID> --release --force` before moving to `done` or back to `todo`.
 

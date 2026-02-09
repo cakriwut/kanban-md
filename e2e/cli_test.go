@@ -20,6 +20,7 @@ var binPath string
 // Constants used in multiple tests.
 const (
 	codeWIPLimitExceeded = "WIP_LIMIT_EXCEEDED"
+	codeClaimRequired    = "CLAIM_REQUIRED"
 	codeInvalidInput     = "INVALID_INPUT"
 	codeInvalidDate      = "INVALID_DATE"
 	codeInvalidStatus    = "INVALID_STATUS"
@@ -27,6 +28,9 @@ const (
 	statusInProgress     = "in-progress"
 	statusDeleted        = "deleted"
 	priorityHigh         = "high"
+	claimTestAgent       = "test-agent"
+	claimAgent1          = "agent-1"
+	codeTaskClaimed      = "TASK_CLAIMED"
 )
 
 func TestMain(m *testing.M) {
@@ -708,7 +712,7 @@ func TestMoveDirectStatus(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Movable task")
 
 	var task taskJSON
-	runKanbanJSON(t, kanbanDir, &task, "move", "1", "in-progress")
+	runKanbanJSON(t, kanbanDir, &task, "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	if task.Status != statusInProgress {
 		t.Errorf("Status = %q, want %q", task.Status, "in-progress")
@@ -727,14 +731,14 @@ func TestMoveNextPrev(t *testing.T) {
 		t.Errorf("after --next: Status = %q, want %q", task.Status, "todo")
 	}
 
-	// todo -> in-progress
-	runKanbanJSON(t, kanbanDir, &task, "move", "1", "--next")
+	// todo -> in-progress (requires --claim)
+	runKanbanJSON(t, kanbanDir, &task, "move", "1", "--next", "--claim", claimTestAgent)
 	if task.Status != statusInProgress {
 		t.Errorf("after second --next: Status = %q, want %q", task.Status, "in-progress")
 	}
 
-	// in-progress -> todo
-	runKanbanJSON(t, kanbanDir, &task, "move", "1", "--prev")
+	// in-progress -> todo (--claim needed because task is now claimed)
+	runKanbanJSON(t, kanbanDir, &task, "move", "1", "--prev", "--claim", claimTestAgent)
 	if task.Status != "todo" {
 		t.Errorf("after --prev: Status = %q, want %q", task.Status, "todo")
 	}
@@ -863,11 +867,11 @@ func TestMoveRespectsWIPLimit(t *testing.T) {
 
 	// Create a task and move it to in-progress (fills the slot).
 	mustCreateTask(t, kanbanDir, "Task A")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	// Create another task and try to move it to in-progress.
 	mustCreateTask(t, kanbanDir, "Task B")
-	errResp := runKanbanJSONError(t, kanbanDir, "move", "2", "in-progress")
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "2", "in-progress", "--claim", claimTestAgent)
 	if errResp.Code != codeWIPLimitExceeded {
 		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
@@ -877,10 +881,10 @@ func TestMoveForceOverridesWIP(t *testing.T) {
 	kanbanDir := initBoardWithWIP(t, 1)
 
 	mustCreateTask(t, kanbanDir, "Task A")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	mustCreateTask(t, kanbanDir, "Task B")
-	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--force")
+	r := runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--force", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("exit code = %d, want 0 with --force\nstderr: %s", r.exitCode, r.stderr)
 	}
@@ -910,7 +914,7 @@ func TestEditStatusRespectsWIPLimit(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task B")
 
 	// Edit task B status to in-progress should fail.
-	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress", "--claim", claimTestAgent)
 	if errResp.Code != codeWIPLimitExceeded {
 		t.Errorf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
@@ -923,13 +927,13 @@ func TestEditForceOverridesWIP(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task B")
 
 	// Without --force, edit should fail.
-	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress")
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "2", "--status", "in-progress", "--claim", claimTestAgent)
 	if errResp.Code != codeWIPLimitExceeded {
 		t.Fatalf("code = %q, want WIP_LIMIT_EXCEEDED", errResp.Code)
 	}
 
 	// With --force, edit should succeed with a warning.
-	r := runKanban(t, kanbanDir, "edit", "2", "--status", "in-progress", "--force")
+	r := runKanban(t, kanbanDir, "edit", "2", "--status", "in-progress", "--force", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("exit code = %d, want 0 with --force\nstderr: %s", r.exitCode, r.stderr)
 	}
@@ -1002,9 +1006,9 @@ func TestMoveBackClearsCompleted(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task A")
 	runKanban(t, kanbanDir, "--json", "move", "1", "done")
 
-	// Move back from done — should clear completed.
+	// Move back from done — should clear completed. Review requires --claim.
 	var task map[string]interface{}
-	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "review")
+	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "review", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("move failed: %s", r.stderr)
 	}
@@ -1027,7 +1031,7 @@ func TestMoveStartedNeverOverwritten(t *testing.T) {
 
 	// Second move: todo -> in-progress (should NOT change started).
 	var second map[string]interface{}
-	runKanbanJSON(t, kanbanDir, &second, "move", "1", "in-progress")
+	runKanbanJSON(t, kanbanDir, &second, "move", "1", "in-progress", "--claim", claimTestAgent)
 	started2 := second["started"]
 
 	if started1 != started2 {
@@ -1926,9 +1930,9 @@ func TestMetricsWithCompletedTasks(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task B")
 
 	// Move tasks through the workflow to get timestamps.
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
-	runKanban(t, kanbanDir, "--json", "move", "1", "done")
-	runKanban(t, kanbanDir, "--json", "move", "2", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
+	runKanban(t, kanbanDir, "--json", "move", "1", "done", "--claim", claimTestAgent)
+	runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--claim", claimTestAgent)
 
 	var m struct {
 		Throughput7d  int `json:"throughput_7d"`
@@ -1957,8 +1961,8 @@ func TestMetricsWithCompletedTasks(t *testing.T) {
 func TestMetricsSinceFilter(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Task A")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
-	runKanban(t, kanbanDir, "--json", "move", "1", "done")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
+	runKanban(t, kanbanDir, "--json", "move", "1", "done", "--claim", claimTestAgent)
 
 	// Filter with a future date — completed task should be excluded from throughput.
 	var m struct {
@@ -2353,7 +2357,7 @@ func TestContextWithTasks(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Active task")
 	mustCreateTask(t, kanbanDir, "Blocked task")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
 	runKanban(t, kanbanDir, "--json", "edit", "2", "--block", "waiting")
 
 	var ctx struct {
@@ -2417,7 +2421,7 @@ func TestContextJSON(t *testing.T) {
 func TestContextWriteToFile_NewFile(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Written task")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	outFile := filepath.Join(t.TempDir(), "context.md")
 	runKanban(t, kanbanDir, "context", "--write-to", outFile)
@@ -2442,7 +2446,7 @@ func TestContextWriteToFile_NewFile(t *testing.T) {
 func TestContextWriteToFile_UpdateExisting(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "First run")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	outFile := filepath.Join(t.TempDir(), "AGENTS.md")
 
@@ -2457,7 +2461,7 @@ func TestContextWriteToFile_UpdateExisting(t *testing.T) {
 
 	// Create another task and move it, then write again — should update in place.
 	mustCreateTask(t, kanbanDir, "Second run")
-	runKanban(t, kanbanDir, "--json", "move", "2", "in-progress")
+	runKanban(t, kanbanDir, "--json", "move", "2", "in-progress", "--claim", claimTestAgent)
 	runKanban(t, kanbanDir, "context", "--write-to", outFile)
 
 	data, err := os.ReadFile(outFile) //nolint:gosec // test file path
@@ -2511,8 +2515,8 @@ func TestContextWriteToFile_AppendToExisting(t *testing.T) {
 func TestContextSectionsFilter(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Filtered task")
-	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
-	runKanban(t, kanbanDir, "--json", "edit", "1", "--block", "test")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimTestAgent)
+	runKanban(t, kanbanDir, "--json", "edit", "1", "--block", "test", "--claim", claimTestAgent)
 
 	var ctx struct {
 		Sections []struct {
@@ -2573,7 +2577,7 @@ func TestBatchMovePartialFailure(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task C")
 
 	// Move all 3 to in-progress with WIP limit of 1. First succeeds, rest fail.
-	r := runKanban(t, kanbanDir, "--json", "move", "1,2,3", "in-progress")
+	r := runKanban(t, kanbanDir, "--json", "move", "1,2,3", "in-progress", "--claim", claimTestAgent)
 	if r.exitCode == 0 {
 		t.Error("expected non-zero exit code for partial failure")
 	}
@@ -3596,8 +3600,8 @@ claimed_at: 2020-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Move should succeed — claim has expired.
-	r := runKanban(t, kanbanDir, "move", "1", "in-progress")
+	// Move should succeed — claim has expired. --claim required for in-progress.
+	r := runKanban(t, kanbanDir, "move", "1", "in-progress", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("move should succeed for expired claim, got exit %d: %s", r.exitCode, r.stderr)
 	}
@@ -3690,8 +3694,8 @@ claimed_at: 2099-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	// Move with --force should succeed despite active claim.
-	r := runKanban(t, kanbanDir, "move", "1", "in-progress", "--force")
+	// Move with --force should succeed despite active claim. --claim required for in-progress.
+	r := runKanban(t, kanbanDir, "move", "1", "in-progress", "--force", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("move --force should succeed, got exit %d: %s", r.exitCode, r.stderr)
 	}
@@ -3807,7 +3811,7 @@ claimed_at: 2099-01-01T00:00:00Z
 
 	// Verify structured JSON error output.
 	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "in-progress")
-	if errResp.Code != "TASK_CLAIMED" {
+	if errResp.Code != codeTaskClaimed {
 		t.Errorf("error code = %q, want TASK_CLAIMED", errResp.Code)
 	}
 	if errResp.Details["claimed_by"] != "agent-alpha" {
@@ -4023,30 +4027,31 @@ claimed_at: 2020-01-01T00:00:00Z
 `)
 	bumpNextID(t, kanbanDir, 2)
 
-	r := runKanban(t, kanbanDir, "move", "1", "in-progress")
+	// --claim required for in-progress; the expired claim is cleared and replaced.
+	r := runKanban(t, kanbanDir, "move", "1", "in-progress", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("move should succeed for expired claim, got exit %d: %s", r.exitCode, r.stderr)
 	}
 
-	// Read the task back and verify claim fields are cleared.
+	// Read the task back and verify the old claim is replaced by the new one.
 	var tk taskJSON
 	r = runKanbanJSON(t, kanbanDir, &tk, "show", "1")
 	if r.exitCode != 0 {
 		t.Fatalf("show failed (exit %d): %s", r.exitCode, r.stderr)
 	}
 
-	// Verify the task file no longer has claim fields by reading raw content.
+	// Verify the expired claim is replaced by the new claim.
 	taskPath := filepath.Join(kanbanDir, "tasks", "001-expired-claim-cleared.md")
 	data, err := os.ReadFile(taskPath) //nolint:gosec // e2e test file
 	if err != nil {
 		t.Fatalf("reading task file: %v", err)
 	}
 	content := string(data)
-	if strings.Contains(content, "claimed_by:") {
-		t.Error("task file should not contain claimed_by after expired claim is cleared")
+	if strings.Contains(content, "agent-old") {
+		t.Error("task file should not contain old claim agent after expired claim is cleared")
 	}
-	if strings.Contains(content, "claimed_at:") {
-		t.Error("task file should not contain claimed_at after expired claim is cleared")
+	if !strings.Contains(content, claimTestAgent) {
+		t.Error("task file should contain new claim agent after move with --claim")
 	}
 }
 
@@ -4059,7 +4064,7 @@ func TestListGroupByStatus(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task A", "--status", "todo")
 	mustCreateTask(t, kanbanDir, "Task B", "--status", "todo")
 	taskC := mustCreateTask(t, kanbanDir, "Task C")
-	runKanban(t, kanbanDir, "move", strconv.Itoa(taskC.ID), "in-progress")
+	runKanban(t, kanbanDir, "move", strconv.Itoa(taskC.ID), "in-progress", "--claim", claimTestAgent)
 
 	// Table output with --group-by status.
 	r := runKanban(t, kanbanDir, "list", "--group-by", "status")
@@ -4118,7 +4123,7 @@ func TestBoardGroupByStatus(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Task A", "--status", "todo")
 	taskB := mustCreateTask(t, kanbanDir, "Task B")
-	runKanban(t, kanbanDir, "move", strconv.Itoa(taskB.ID), "in-progress")
+	runKanban(t, kanbanDir, "move", strconv.Itoa(taskB.ID), "in-progress", "--claim", claimTestAgent)
 
 	// Table output.
 	r := runKanban(t, kanbanDir, "board", "--group-by", "status")
@@ -4266,15 +4271,15 @@ func TestPickBasic(t *testing.T) {
 
 	// Pick should select the highest-priority unclaimed task.
 	var picked taskJSON
-	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", "agent-1")
+	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", claimAgent1)
 	if r.exitCode != 0 {
 		t.Fatalf("pick failed (exit %d): %s", r.exitCode, r.stderr)
 	}
 	if picked.Title != "Pick me" {
 		t.Errorf("picked title = %q, want %q", picked.Title, "Pick me")
 	}
-	if picked.ClaimedBy != "agent-1" {
-		t.Errorf("claimed_by = %q, want %q", picked.ClaimedBy, "agent-1")
+	if picked.ClaimedBy != claimAgent1 {
+		t.Errorf("claimed_by = %q, want %q", picked.ClaimedBy, claimAgent1)
 	}
 }
 
@@ -4283,7 +4288,7 @@ func TestPickWithMove(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Move me")
 
 	var picked taskJSON
-	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", "agent-1", "--move", "in-progress")
+	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", claimAgent1, "--move", "in-progress")
 	if r.exitCode != 0 {
 		t.Fatalf("pick --move failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4298,7 +4303,7 @@ func TestPickWithStatusFilter(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Todo task", "--status", "todo")
 
 	var picked taskJSON
-	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", "agent-1", "--status", "todo")
+	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", claimAgent1, "--status", "todo")
 	if r.exitCode != 0 {
 		t.Fatalf("pick --status failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4313,7 +4318,7 @@ func TestPickWithTagFilter(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Tagged task", "--tags", "urgent")
 
 	var picked taskJSON
-	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", "agent-1", "--tag", "urgent")
+	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", claimAgent1, "--tag", "urgent")
 	if r.exitCode != 0 {
 		t.Fatalf("pick --tag failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4325,7 +4330,7 @@ func TestPickWithTagFilter(t *testing.T) {
 func TestPickNothingAvailable(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", "agent-1")
+	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", claimAgent1)
 	if errResp.Code != "NOTHING_TO_PICK" {
 		t.Errorf("error code = %q, want NOTHING_TO_PICK", errResp.Code)
 	}
@@ -4335,14 +4340,14 @@ func TestPickTableOutput(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Table pick task")
 
-	r := runKanban(t, kanbanDir, "pick", "--claim", "agent-1")
+	r := runKanban(t, kanbanDir, "pick", "--claim", claimAgent1)
 	if r.exitCode != 0 {
 		t.Fatalf("pick table output failed (exit %d): %s", r.exitCode, r.stderr)
 	}
 	if !strings.Contains(r.stdout, "Picked task") {
 		t.Error("table output should contain 'Picked task'")
 	}
-	if !strings.Contains(r.stdout, "agent-1") {
+	if !strings.Contains(r.stdout, claimAgent1) {
 		t.Error("table output should contain claimant name")
 	}
 }
@@ -4351,7 +4356,7 @@ func TestPickTableOutputWithMove(t *testing.T) {
 	kanbanDir := initBoard(t)
 	mustCreateTask(t, kanbanDir, "Table move task")
 
-	r := runKanban(t, kanbanDir, "pick", "--claim", "agent-1", "--move", "in-progress")
+	r := runKanban(t, kanbanDir, "pick", "--claim", claimAgent1, "--move", "in-progress")
 	if r.exitCode != 0 {
 		t.Fatalf("pick --move table output failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4363,7 +4368,7 @@ func TestPickTableOutputWithMove(t *testing.T) {
 func TestPickInvalidStatus(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", "agent-1", "--status", "nonexistent")
+	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", claimAgent1, "--status", "nonexistent")
 	if errResp.Code != codeInvalidStatus {
 		t.Errorf("error code = %q, want INVALID_STATUS", errResp.Code)
 	}
@@ -4372,7 +4377,7 @@ func TestPickInvalidStatus(t *testing.T) {
 func TestPickInvalidMoveTarget(t *testing.T) {
 	kanbanDir := initBoard(t)
 
-	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", "agent-1", "--move", "nonexistent")
+	errResp := runKanbanJSONError(t, kanbanDir, "pick", "--claim", claimAgent1, "--move", "nonexistent")
 	if errResp.Code != codeInvalidStatus {
 		t.Errorf("error code = %q, want INVALID_STATUS", errResp.Code)
 	}
@@ -4386,11 +4391,11 @@ func TestExpediteBypassesColumnWIP(t *testing.T) {
 	kanbanDir := initBoardWithWIP(t, 1)
 	// Fill the in-progress column.
 	mustCreateTask(t, kanbanDir, "Normal task")
-	runKanban(t, kanbanDir, "move", "1", "in-progress")
+	runKanban(t, kanbanDir, "move", "1", "in-progress", "--claim", claimTestAgent)
 
 	// Create an expedite task and move it — should bypass the column WIP limit.
 	mustCreateTask(t, kanbanDir, "Expedite task", "--class", "expedite")
-	r := runKanban(t, kanbanDir, "move", "2", "in-progress")
+	r := runKanban(t, kanbanDir, "move", "2", "in-progress", "--claim", claimTestAgent)
 	if r.exitCode != 0 {
 		t.Fatalf("expedite move failed (exit %d): %s", r.exitCode, r.stderr)
 	}
@@ -4472,12 +4477,12 @@ func TestMoveWithClaim(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Claim during move")
 
 	var moved taskJSON
-	r := runKanbanJSON(t, kanbanDir, &moved, "move", "1", "in-progress", "--claim", "agent-1")
+	r := runKanbanJSON(t, kanbanDir, &moved, "move", "1", "in-progress", "--claim", claimAgent1)
 	if r.exitCode != 0 {
 		t.Fatalf("move --claim failed (exit %d): %s", r.exitCode, r.stderr)
 	}
-	if moved.ClaimedBy != "agent-1" {
-		t.Errorf("claimed_by = %q, want %q", moved.ClaimedBy, "agent-1")
+	if moved.ClaimedBy != claimAgent1 {
+		t.Errorf("claimed_by = %q, want %q", moved.ClaimedBy, claimAgent1)
 	}
 	if moved.Status != statusInProgress {
 		t.Errorf("status = %q, want %q", moved.Status, "in-progress")
@@ -4681,5 +4686,471 @@ func TestArchiveJSON(t *testing.T) {
 	}
 	if result.Status != "archived" {
 		t.Errorf("status = %q, want archived", result.Status)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Require-claim enforcement tests
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimMoveToInProgressWithoutClaimFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "in-progress")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+func TestRequireClaimMoveToReviewWithoutClaimFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "review")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+func TestRequireClaimMoveToNonClaimStatusSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	// backlog, todo, done — none require claim.
+	for _, status := range []string{"todo", "done"} {
+		r := runKanban(t, kanbanDir, "--json", "move", "1", status)
+		if r.exitCode != 0 {
+			t.Errorf("move to %q without --claim failed (exit %d): %s", status, r.exitCode, r.stderr)
+		}
+	}
+}
+
+func TestRequireClaimMoveWithClaimSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "in-progress", "--claim", "agent-x")
+	if r.exitCode != 0 {
+		t.Fatalf("move with --claim failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if task.Status != statusInProgress {
+		t.Errorf("status = %q, want %q", task.Status, statusInProgress)
+	}
+	if task.ClaimedBy != "agent-x" {
+		t.Errorf("claimed_by = %q, want %q", task.ClaimedBy, "agent-x")
+	}
+}
+
+func TestRequireClaimEditInClaimStatusWithoutClaimFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task", "--status", "in-progress")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--title", "Changed")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+func TestRequireClaimEditInNonClaimStatusSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--title", "Changed")
+	if r.exitCode != 0 {
+		t.Fatalf("edit without --claim in backlog failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if task.Title != "Changed" {
+		t.Errorf("title = %q, want %q", task.Title, "Changed")
+	}
+}
+
+func TestRequireClaimEditStatusToClaimStatusWithoutClaimFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Test task")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--status", "in-progress")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Multi-agent identity verification
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimWrongAgentCannotMoveClaimedTask(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Claimed task")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", "agent-alpha")
+
+	// agent-beta tries to move → should fail (task claimed by agent-alpha).
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "review", "--claim", "agent-beta")
+	if errResp.Code != codeTaskClaimed {
+		t.Errorf("code = %q, want TASK_CLAIMED", errResp.Code)
+	}
+}
+
+func TestRequireClaimCorrectAgentCanMoveClaimedTask(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Claimed task")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", "agent-alpha")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "review", "--claim", "agent-alpha")
+	if r.exitCode != 0 {
+		t.Fatalf("correct agent move failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if task.Status != "review" {
+		t.Errorf("status = %q, want %q", task.Status, "review")
+	}
+}
+
+func TestRequireClaimWrongAgentCannotEditClaimedTask(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Claimed task")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", "agent-alpha")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--title", "Changed", "--claim", "agent-beta")
+	if errResp.Code != codeTaskClaimed {
+		t.Errorf("code = %q, want TASK_CLAIMED", errResp.Code)
+	}
+}
+
+func TestRequireClaimCorrectAgentCanEditClaimedTask(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Claimed task")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", "agent-alpha")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--title", "Changed", "--claim", "agent-alpha")
+	if r.exitCode != 0 {
+		t.Fatalf("correct agent edit failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if task.Title != "Changed" {
+		t.Errorf("title = %q, want %q", task.Title, "Changed")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Claim preservation through lifecycle
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimFullLifecyclePreservesClaim(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Lifecycle task")
+
+	// Move through: backlog → in-progress → review → done.
+	// Claim should persist at every step.
+	const agent = "lifecycle-agent"
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "in-progress", "--claim", agent)
+	if r.exitCode != 0 {
+		t.Fatalf("move to in-progress failed: %s", r.stderr)
+	}
+	if task.ClaimedBy != agent {
+		t.Errorf("after in-progress: claimed_by = %q, want %q", task.ClaimedBy, agent)
+	}
+
+	r = runKanbanJSON(t, kanbanDir, &task, "move", "1", "review", "--claim", agent)
+	if r.exitCode != 0 {
+		t.Fatalf("move to review failed: %s", r.stderr)
+	}
+	if task.ClaimedBy != agent {
+		t.Errorf("after review: claimed_by = %q, want %q", task.ClaimedBy, agent)
+	}
+
+	r = runKanbanJSON(t, kanbanDir, &task, "move", "1", "done", "--claim", agent)
+	if r.exitCode != 0 {
+		t.Fatalf("move to done failed: %s", r.stderr)
+	}
+	if task.ClaimedBy != agent {
+		t.Errorf("after done: claimed_by = %q, want %q", task.ClaimedBy, agent)
+	}
+}
+
+func TestRequireClaimNotSilentlyClearedOnMove(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Preserved claim task")
+
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimAgent1)
+	runKanban(t, kanbanDir, "--json", "move", "1", "review", "--claim", claimAgent1)
+
+	// Read the raw task file and verify claimed_by is present.
+	taskPath := filepath.Join(kanbanDir, "tasks", "001-preserved-claim-task.md")
+	data, err := os.ReadFile(taskPath) //nolint:gosec // e2e test file
+	if err != nil {
+		t.Fatalf("reading task file: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "claimed_by: agent-1") {
+		t.Error("claimed_by should be present in task file after move")
+	}
+	if !strings.Contains(content, "claimed_at:") {
+		t.Error("claimed_at should be present in task file after move")
+	}
+}
+
+func TestRequireClaimExplicitRelease(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Release test")
+
+	// Claim during move.
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimAgent1)
+
+	// Move to done — claim should persist.
+	var task taskJSON
+	runKanbanJSON(t, kanbanDir, &task, "move", "1", "done", "--claim", claimAgent1)
+	if task.ClaimedBy != claimAgent1 {
+		t.Errorf("claimed_by after done = %q, want %q", task.ClaimedBy, claimAgent1)
+	}
+
+	// Only explicit release clears the claim.
+	var released taskJSON
+	r := runKanbanJSON(t, kanbanDir, &released, "edit", "1", "--release", "--force")
+	if r.exitCode != 0 {
+		t.Fatalf("edit --release --force failed (exit %d): stdout=%s stderr=%s", r.exitCode, r.stdout, r.stderr)
+	}
+	if released.ClaimedBy != "" {
+		t.Errorf("claimed_by after release = %q, want empty", released.ClaimedBy)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// --next/--prev with require_claim
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimNextIntoClaimStatusFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Next test")
+	runKanban(t, kanbanDir, "--json", "move", "1", "todo")
+
+	// --next from todo → in-progress (requires claim).
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "--next")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+func TestRequireClaimNextWithClaimSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Next test")
+	runKanban(t, kanbanDir, "--json", "move", "1", "todo")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "move", "1", "--next", "--claim", claimAgent1)
+	if r.exitCode != 0 {
+		t.Fatalf("--next with --claim failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if task.Status != statusInProgress {
+		t.Errorf("status = %q, want %q", task.Status, statusInProgress)
+	}
+}
+
+func TestRequireClaimPrevIntoClaimStatusFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Prev test")
+	runKanban(t, kanbanDir, "--json", "move", "1", "done")
+
+	// --prev from done → review (requires claim).
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "--prev")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Batch operations with require_claim
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimBatchMoveWithoutClaimFails(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Task A")
+	mustCreateTask(t, kanbanDir, "Task B")
+
+	r := runKanban(t, kanbanDir, "--json", "move", "1,2", "in-progress")
+
+	var results []batchResultJSON
+	if err := json.Unmarshal([]byte(r.stdout), &results); err != nil {
+		t.Fatalf("parsing batch results: %v\nstdout: %s", err, r.stdout)
+	}
+	for i, res := range results {
+		if res.OK {
+			t.Errorf("results[%d].OK = true, want false (require_claim should block)", i)
+		}
+	}
+}
+
+func TestRequireClaimBatchMoveWithClaimSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Task A")
+	mustCreateTask(t, kanbanDir, "Task B")
+
+	r := runKanban(t, kanbanDir, "--json", "move", "1,2", "in-progress", "--claim", claimAgent1)
+
+	var results []batchResultJSON
+	if err := json.Unmarshal([]byte(r.stdout), &results); err != nil {
+		t.Fatalf("parsing batch results: %v\nstdout: %s", err, r.stdout)
+	}
+	for i, res := range results {
+		if !res.OK {
+			t.Errorf("results[%d].OK = false, want true", i)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Config edge cases
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimCustomStatusesNoRequire(t *testing.T) {
+	// Board with custom statuses — none have require_claim.
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	runKanban(t, kanbanDir, "init", "--statuses", "open,active,closed")
+	mustCreateTask(t, kanbanDir, "Custom task")
+
+	// Move to "active" without --claim should succeed.
+	r := runKanban(t, kanbanDir, "--json", "move", "1", "active")
+	if r.exitCode != 0 {
+		t.Fatalf("move to active without --claim failed in custom board (exit %d): %s", r.exitCode, r.stderr)
+	}
+}
+
+func TestRequireClaimNewBoardDefaults(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	// Read the generated config and verify require_claim defaults.
+	configPath := filepath.Join(kanbanDir, "config.yml")
+	data, err := os.ReadFile(configPath) //nolint:gosec // e2e test file
+	if err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "require_claim: true") {
+		t.Error("default config should contain 'require_claim: true'")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Idempotent move and error message quality
+// ---------------------------------------------------------------------------
+
+func TestRequireClaimIdempotentMoveSucceeds(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Idempotent test", "--status", "in-progress")
+
+	// Task is already at in-progress. Moving again is idempotent — no actual change.
+	// This should succeed without --claim because no mutation occurs.
+	r := runKanban(t, kanbanDir, "--json", "move", "1", "in-progress")
+	if r.exitCode != 0 {
+		t.Fatalf("idempotent move failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+}
+
+func TestRequireClaimErrorMessageQuality(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Error test")
+
+	r := runKanban(t, kanbanDir, "move", "1", "in-progress")
+	if r.exitCode == 0 {
+		t.Fatal("expected failure")
+	}
+	combined := r.stdout + r.stderr
+	if !strings.Contains(combined, "in-progress") {
+		t.Error("error should mention the status name")
+	}
+	if !strings.Contains(combined, "--claim") {
+		t.Error("error should mention --claim flag")
+	}
+}
+
+func TestRequireClaimJSONErrorOutput(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "JSON error test")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "in-progress")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
+	}
+	if errResp.Details["status"] != "in-progress" {
+		t.Errorf("details.status = %v, want %q", errResp.Details["status"], "in-progress")
+	}
+}
+
+func TestRequireClaimCreateInClaimStatusSucceeds(t *testing.T) {
+	// Creating a task directly in a require_claim status should work.
+	// Create doesn't have claim semantics — it's setting initial state.
+	kanbanDir := initBoard(t)
+	task := mustCreateTask(t, kanbanDir, "Direct create", "--status", "in-progress")
+	if task.Status != statusInProgress {
+		t.Errorf("status = %q, want %q", task.Status, statusInProgress)
+	}
+}
+
+func TestRequireClaimPickWithMoveToClaimStatus(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Pickable task", "--status", "todo")
+
+	var picked taskJSON
+	r := runKanbanJSON(t, kanbanDir, &picked, "pick", "--claim", "picker-agent", "--move", "in-progress")
+	if r.exitCode != 0 {
+		t.Fatalf("pick --claim --move in-progress failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+	if picked.Status != statusInProgress {
+		t.Errorf("status = %q, want %q", picked.Status, statusInProgress)
+	}
+	if picked.ClaimedBy != "picker-agent" {
+		t.Errorf("claimed_by = %q, want %q", picked.ClaimedBy, "picker-agent")
+	}
+}
+
+func TestRequireClaimExpiredClaimStillRequiresClaim(t *testing.T) {
+	kanbanDir := initBoard(t)
+	writeTaskFile(t, kanbanDir, 1, `---
+id: 1
+title: Expired claim test
+status: backlog
+priority: high
+created: 2026-01-01T00:00:00Z
+updated: 2026-01-01T00:00:00Z
+claimed_by: agent-old
+claimed_at: 2020-01-01T00:00:00Z
+---
+`)
+	bumpNextID(t, kanbanDir, 2)
+
+	// Even though the claim is expired, require_claim still demands --claim.
+	errResp := runKanbanJSONError(t, kanbanDir, "move", "1", "in-progress")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q (expired claim doesn't bypass require_claim)", errResp.Code, codeClaimRequired)
+	}
+
+	// With --claim, it succeeds.
+	r := runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", "new-agent")
+	if r.exitCode != 0 {
+		t.Fatalf("move with --claim should succeed (exit %d): %s", r.exitCode, r.stderr)
+	}
+}
+
+func TestRequireClaimReleaseWithForce(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Release edit test")
+	runKanban(t, kanbanDir, "--json", "move", "1", "in-progress", "--claim", claimAgent1)
+
+	// Release the claim. Use --force to bypass claim check (--release exempts require_claim).
+	r := runKanban(t, kanbanDir, "--json", "edit", "1", "--release", "--force")
+	if r.exitCode != 0 {
+		t.Fatalf("release failed (exit %d): %s", r.exitCode, r.stderr)
+	}
+
+	// After release, task is still in in-progress but unclaimed.
+	// Editing still requires --claim because the status has require_claim.
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--title", "Changed")
+	if errResp.Code != codeClaimRequired {
+		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
 	}
 }

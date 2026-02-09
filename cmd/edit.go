@@ -106,10 +106,8 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 		return nil, "", err
 	}
 
-	// Check claim before allowing modifications.
-	claimant, _ := cmd.Flags().GetString("claim")
-	release, _ := cmd.Flags().GetBool("release")
-	if err = checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
+	claimant, release, err := validateEditClaim(cfg, t, cmd, force)
+	if err != nil {
 		return nil, "", err
 	}
 
@@ -117,38 +115,17 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 	oldStatus := t.Status
 	wasBlocked := t.Blocked
 	wasClaimedBy := t.ClaimedBy
-	changed, err := applyEditFlags(cmd, t, cfg)
+	changed, err := applyEditChanges(cmd, t, cfg, claimant, release)
 	if err != nil {
 		return nil, "", err
-	}
-
-	// Apply claim/release flags.
-	if c, claimErr := applyClaimFlags(cmd, t, claimant, release); claimErr != nil {
-		return nil, "", claimErr
-	} else if c {
-		changed = true
 	}
 
 	if !changed {
 		return nil, "", clierr.New(clierr.NoChanges, "no changes specified")
 	}
 
-	// Validate dependency references.
-	if err = validateDeps(cfg, t); err != nil {
+	if err = validateEditPost(cfg, t, oldStatus, claimant, force); err != nil {
 		return nil, "", err
-	}
-
-	// Check WIP limit if status changed (class-aware).
-	if t.Status != oldStatus {
-		if t.Class != "" && len(cfg.Classes) > 0 {
-			if err = enforceWIPLimitForClass(cfg, t, oldStatus, t.Status, force); err != nil {
-				return nil, "", err
-			}
-		} else {
-			if err = enforceWIPLimit(cfg, oldStatus, t.Status, force); err != nil {
-				return nil, "", err
-			}
-		}
 	}
 
 	t.Updated = time.Now()
@@ -160,6 +137,53 @@ func executeEdit(cfg *config.Config, id int, cmd *cobra.Command, force bool) (*t
 
 	logEditActivity(cfg, t, wasBlocked, wasClaimedBy)
 	return t, newPath, nil
+}
+
+// validateEditClaim checks claim ownership and require_claim before allowing edits.
+func validateEditClaim(cfg *config.Config, t *task.Task, cmd *cobra.Command, force bool) (string, bool, error) {
+	claimant, _ := cmd.Flags().GetString("claim")
+	release, _ := cmd.Flags().GetBool("release")
+	if err := checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
+		return "", false, err
+	}
+	// Enforce require_claim for the task's current status.
+	if cfg.StatusRequiresClaim(t.Status) && claimant == "" && !release {
+		return "", false, task.ValidateClaimRequired(t.Status)
+	}
+	return claimant, release, nil
+}
+
+// applyEditChanges applies field edits and claim/release flags.
+func applyEditChanges(cmd *cobra.Command, t *task.Task, cfg *config.Config, claimant string, release bool) (bool, error) {
+	changed, err := applyEditFlags(cmd, t, cfg)
+	if err != nil {
+		return false, err
+	}
+	if c, claimErr := applyClaimFlags(cmd, t, claimant, release); claimErr != nil {
+		return false, claimErr
+	} else if c {
+		changed = true
+	}
+	return changed, nil
+}
+
+// validateEditPost runs post-edit validations: deps, require_claim for new status, WIP limits.
+func validateEditPost(cfg *config.Config, t *task.Task, oldStatus, claimant string, force bool) error {
+	if err := validateDeps(cfg, t); err != nil {
+		return err
+	}
+	// Enforce require_claim if status changed via --status.
+	if t.Status != oldStatus && cfg.StatusRequiresClaim(t.Status) && claimant == "" {
+		return task.ValidateClaimRequired(t.Status)
+	}
+	// Check WIP limit if status changed (class-aware).
+	if t.Status != oldStatus {
+		if t.Class != "" && len(cfg.Classes) > 0 {
+			return enforceWIPLimitForClass(cfg, t, oldStatus, t.Status, force)
+		}
+		return enforceWIPLimit(cfg, oldStatus, t.Status, force)
+	}
+	return nil
 }
 
 // writeAndRename writes the task and renames the file if the title changed.
@@ -256,7 +280,7 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 		changed = true
 	}
 	if v, _ := cmd.Flags().GetString("status"); v != "" {
-		if err := task.ValidateStatus(v, cfg.Statuses); err != nil {
+		if err := task.ValidateStatus(v, cfg.StatusNames()); err != nil {
 			return false, err
 		}
 		t.Status = v

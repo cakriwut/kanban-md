@@ -110,8 +110,9 @@ func groupStatusSummary(tasks []*task.Task, cfg *config.Config) []StatusSummary 
 	for _, t := range tasks {
 		counts[t.Status]++
 	}
-	statuses := make([]StatusSummary, 0, len(cfg.Statuses))
-	for _, s := range cfg.Statuses {
+	names := cfg.StatusNames()
+	statuses := make([]StatusSummary, 0, len(names))
+	for _, s := range names {
 		statuses = append(statuses, StatusSummary{
 			Status:   s,
 			Count:    counts[s],

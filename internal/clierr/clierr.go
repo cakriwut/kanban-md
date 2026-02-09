@@ -28,6 +28,7 @@ const (
 	TaskClaimed        = "TASK_CLAIMED"
 	InvalidClass       = "INVALID_CLASS"
 	ClassWIPExceeded   = "CLASS_WIP_EXCEEDED"
+	ClaimRequired      = "CLAIM_REQUIRED"
 	NothingToPick      = "NOTHING_TO_PICK"
 	InvalidGroupBy     = "INVALID_GROUP_BY"
 	InternalError      = "INTERNAL_ERROR"

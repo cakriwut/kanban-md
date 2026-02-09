@@ -133,7 +133,13 @@ func TestMigrateV5ToV6(t *testing.T) {
 	cfg := NewDefault("Test")
 	cfg.Version = 5
 	// Remove archived status to simulate a v5 config.
-	cfg.Statuses = []string{"backlog", "todo", "in-progress", "review", "done"}
+	cfg.Statuses = []StatusConfig{
+		{Name: "backlog"},
+		{Name: "todo"},
+		{Name: "in-progress"},
+		{Name: "review"},
+		{Name: "done"},
+	}
 
 	if err := migrate(cfg); err != nil {
 		t.Fatalf("migrate() v5→v6: %v", err)
@@ -141,12 +147,13 @@ func TestMigrateV5ToV6(t *testing.T) {
 	if cfg.Version != CurrentVersion {
 		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
 	}
-	if !contains(cfg.Statuses, ArchivedStatus) {
+	names := cfg.StatusNames()
+	if !contains(names, ArchivedStatus) {
 		t.Fatal("Statuses should contain 'archived' after v5→v6 migration")
 	}
 	// Verify archived is at the end.
-	if cfg.Statuses[len(cfg.Statuses)-1] != ArchivedStatus {
-		t.Errorf("last status = %q, want %q", cfg.Statuses[len(cfg.Statuses)-1], ArchivedStatus)
+	if names[len(names)-1] != ArchivedStatus {
+		t.Errorf("last status = %q, want %q", names[len(names)-1], ArchivedStatus)
 	}
 }
 
@@ -154,7 +161,14 @@ func TestMigrateV5ToV6Idempotent(t *testing.T) {
 	// If archived already exists, migration should not add a duplicate.
 	cfg := NewDefault("Test")
 	cfg.Version = 5
-	cfg.Statuses = []string{"backlog", "todo", "in-progress", "review", "done", ArchivedStatus}
+	cfg.Statuses = []StatusConfig{
+		{Name: "backlog"},
+		{Name: "todo"},
+		{Name: "in-progress"},
+		{Name: "review"},
+		{Name: "done"},
+		{Name: ArchivedStatus},
+	}
 
 	if err := migrate(cfg); err != nil {
 		t.Fatalf("migrate() v5→v6 idempotent: %v", err)
@@ -164,12 +178,29 @@ func TestMigrateV5ToV6Idempotent(t *testing.T) {
 	}
 	// Count occurrences of "archived".
 	count := 0
-	for _, s := range cfg.Statuses {
+	for _, s := range cfg.StatusNames() {
 		if s == ArchivedStatus {
 			count++
 		}
 	}
 	if count != 1 {
 		t.Errorf("archived appears %d times, want 1", count)
+	}
+}
+
+func TestMigrateV6ToV7(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 6
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v6→v7: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	// Statuses should be preserved.
+	names := cfg.StatusNames()
+	if len(names) != len(DefaultStatuses) {
+		t.Errorf("Statuses len = %d, want %d", len(names), len(DefaultStatuses))
 	}
 }

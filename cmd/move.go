@@ -98,9 +98,8 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 		return nil, "", err
 	}
 
-	// Check claim before allowing move.
 	claimant, _ := cmd.Flags().GetString("claim")
-	if err = checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration()); err != nil {
+	if err = validateMoveClaim(cfg, t, claimant, force); err != nil {
 		return nil, "", err
 	}
 
@@ -114,15 +113,13 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 		return t, "", nil
 	}
 
-	// Check WIP limit (class-aware).
-	if t.Class != "" && len(cfg.Classes) > 0 {
-		if err := enforceWIPLimitForClass(cfg, t, t.Status, newStatus, force); err != nil {
-			return nil, "", err
-		}
-	} else {
-		if err := enforceWIPLimit(cfg, t.Status, newStatus, force); err != nil {
-			return nil, "", err
-		}
+	// Enforce require_claim for target status.
+	if cfg.StatusRequiresClaim(newStatus) && claimant == "" {
+		return nil, "", task.ValidateClaimRequired(newStatus)
+	}
+
+	if err = enforceMoveWIP(cfg, t, newStatus, force); err != nil {
+		return nil, "", err
 	}
 
 	// Warn when moving a blocked task.
@@ -133,14 +130,7 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 	oldStatus := t.Status
 	t.Status = newStatus
 	task.UpdateTimestamps(t, oldStatus, newStatus, cfg)
-
-	// Apply claim if --claim flag provided.
-	if cmd.Flags().Changed("claim") && claimant != "" {
-		now := time.Now()
-		t.ClaimedBy = claimant
-		t.ClaimedAt = &now
-	}
-
+	applyMoveClaim(cmd, t, claimant)
 	t.Updated = time.Now()
 
 	if err := task.Write(path, t); err != nil {
@@ -151,6 +141,28 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string, 
 	return t, oldStatus, nil
 }
 
+// validateMoveClaim checks claim ownership before allowing a move.
+func validateMoveClaim(cfg *config.Config, t *task.Task, claimant string, force bool) error {
+	return checkClaim(t, claimant, force, cfg.ClaimTimeoutDuration())
+}
+
+// enforceMoveWIP checks WIP limits, considering class of service.
+func enforceMoveWIP(cfg *config.Config, t *task.Task, newStatus string, force bool) error {
+	if t.Class != "" && len(cfg.Classes) > 0 {
+		return enforceWIPLimitForClass(cfg, t, t.Status, newStatus, force)
+	}
+	return enforceWIPLimit(cfg, t.Status, newStatus, force)
+}
+
+// applyMoveClaim sets the claim on the task if --claim flag was provided.
+func applyMoveClaim(cmd *cobra.Command, t *task.Task, claimant string) {
+	if cmd.Flags().Changed("claim") && claimant != "" {
+		now := time.Now()
+		t.ClaimedBy = claimant
+		t.ClaimedAt = &now
+	}
+}
+
 func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *config.Config) (string, error) {
 	next, _ := cmd.Flags().GetBool("next")
 	prev, _ := cmd.Flags().GetBool("prev")
@@ -158,22 +170,24 @@ func resolveTargetStatus(cmd *cobra.Command, args []string, t *task.Task, cfg *c
 	switch {
 	case len(args) == 2: //nolint:mnd // positional arg
 		status := args[1]
-		if err := task.ValidateStatus(status, cfg.Statuses); err != nil {
+		if err := task.ValidateStatus(status, cfg.StatusNames()); err != nil {
 			return "", err
 		}
 		return status, nil
 	case next:
+		names := cfg.StatusNames()
 		idx := cfg.StatusIndex(t.Status)
-		if idx < 0 || idx >= len(cfg.Statuses)-1 {
+		if idx < 0 || idx >= len(names)-1 {
 			return "", task.ValidateBoundaryError(t.ID, t.Status, "last")
 		}
-		return cfg.Statuses[idx+1], nil
+		return names[idx+1], nil
 	case prev:
+		names := cfg.StatusNames()
 		idx := cfg.StatusIndex(t.Status)
 		if idx <= 0 {
 			return "", task.ValidateBoundaryError(t.ID, t.Status, "first")
 		}
-		return cfg.Statuses[idx-1], nil
+		return names[idx-1], nil
 	default:
 		return "", clierr.New(clierr.InvalidInput, "provide a target status or use --next/--prev")
 	}

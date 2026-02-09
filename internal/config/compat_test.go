@@ -72,8 +72,8 @@ func TestCompatV1Config(t *testing.T) {
 		t.Fatalf("Statuses len = %d, want %d", len(cfg.Statuses), len(wantStatuses))
 	}
 	for i, s := range wantStatuses {
-		if cfg.Statuses[i] != s {
-			t.Errorf("Statuses[%d] = %q, want %q", i, cfg.Statuses[i], s)
+		if cfg.Statuses[i].Name != s {
+			t.Errorf("Statuses[%d] = %q, want %q", i, cfg.Statuses[i].Name, s)
 		}
 	}
 
@@ -134,7 +134,7 @@ func TestCompatV1ConfigMigratesToCurrentVersion(t *testing.T) {
 		t.Errorf("AgeThresholds len = %d, want %d (from v4→v5 migration)", len(cfg.TUI.AgeThresholds), len(DefaultAgeThresholds))
 	}
 	// v5→v6 migration should also have run.
-	if !contains(cfg.Statuses, ArchivedStatus) {
+	if !contains(cfg.StatusNames(), ArchivedStatus) {
 		t.Error("Statuses should contain 'archived' after v5→v6 migration")
 	}
 }
@@ -157,11 +157,13 @@ func TestCompatV2Config(t *testing.T) {
 	}
 
 	// Verify WIP limits.
-	if cfg.WIPLimit("in-progress") != 3 {
-		t.Errorf("WIPLimit(in-progress) = %d, want 3", cfg.WIPLimit("in-progress"))
+	const wantWIP = 3
+	if cfg.WIPLimit("in-progress") != wantWIP {
+		t.Errorf("WIPLimit(in-progress) = %d, want %d", cfg.WIPLimit("in-progress"), wantWIP)
 	}
-	if cfg.WIPLimit("review") != 2 {
-		t.Errorf("WIPLimit(review) = %d, want 2", cfg.WIPLimit("review"))
+	const wantReviewWIP = 2
+	if cfg.WIPLimit("review") != wantReviewWIP {
+		t.Errorf("WIPLimit(review) = %d, want %d", cfg.WIPLimit("review"), wantReviewWIP)
 	}
 	if cfg.WIPLimit("backlog") != 0 {
 		t.Errorf("WIPLimit(backlog) = %d, want 0 (unlimited)", cfg.WIPLimit("backlog"))
@@ -299,7 +301,7 @@ func TestMigrationPersistsToDisk(t *testing.T) {
 	if len(raw.TUI.AgeThresholds) != len(DefaultAgeThresholds) {
 		t.Errorf("Persisted AgeThresholds len = %d, want %d", len(raw.TUI.AgeThresholds), len(DefaultAgeThresholds))
 	}
-	if !contains(raw.Statuses, ArchivedStatus) {
+	if !contains(raw.StatusNames(), ArchivedStatus) {
 		t.Error("Persisted Statuses should contain 'archived' after v5→v6 migration")
 	}
 	const wantName = "Test Project"
@@ -397,7 +399,7 @@ func TestCompatV5ConfigMigratesToV6(t *testing.T) {
 		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
 	}
 	// v5→v6 migration should add "archived" to statuses.
-	if !contains(cfg.Statuses, ArchivedStatus) {
+	if !contains(cfg.StatusNames(), ArchivedStatus) {
 		t.Fatal("Statuses should contain 'archived' after v5→v6 migration")
 	}
 	wantStatuses := []string{"backlog", "todo", "in-progress", "review", "done", ArchivedStatus}
@@ -405,13 +407,75 @@ func TestCompatV5ConfigMigratesToV6(t *testing.T) {
 		t.Fatalf("Statuses len = %d, want %d", len(cfg.Statuses), len(wantStatuses))
 	}
 	for i, s := range wantStatuses {
-		if cfg.Statuses[i] != s {
-			t.Errorf("Statuses[%d] = %q, want %q", i, cfg.Statuses[i], s)
+		if cfg.Statuses[i].Name != s {
+			t.Errorf("Statuses[%d] = %q, want %q", i, cfg.Statuses[i].Name, s)
 		}
 	}
 	// Existing v5 fields should be preserved.
 	if cfg.TUI.TitleLines != DefaultTitleLines {
 		t.Errorf("TUI.TitleLines = %d, want %d", cfg.TUI.TitleLines, DefaultTitleLines)
+	}
+	if cfg.ClaimTimeout != "1h" {
+		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, "1h")
+	}
+}
+
+func TestCompatV6Config(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v6")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v6 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v6" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v6")
+	}
+}
+
+func TestCompatV6ConfigMigratesToV7(t *testing.T) {
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v6")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v6 fixture: %v", err)
+	}
+
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+
+	// v6→v7 migration should convert string statuses to StatusConfig.
+	// require_claim should default to false for all existing statuses.
+	wantStatuses := []string{"backlog", "todo", "in-progress", "review", "done", ArchivedStatus}
+	names := cfg.StatusNames()
+	if len(names) != len(wantStatuses) {
+		t.Fatalf("Statuses len = %d, want %d", len(names), len(wantStatuses))
+	}
+	for i, s := range wantStatuses {
+		if names[i] != s {
+			t.Errorf("Statuses[%d] = %q, want %q", i, names[i], s)
+		}
+	}
+
+	// Existing v6 configs should NOT have require_claim enabled (opt-in only).
+	for _, sc := range cfg.Statuses {
+		if sc.RequireClaim {
+			t.Errorf("Status %q has require_claim=true, want false (migration should not enable)", sc.Name)
+		}
+	}
+
+	// Existing fields should be preserved.
+	const wantWIP = 3
+	if cfg.WIPLimit("in-progress") != wantWIP {
+		t.Errorf("WIPLimit(in-progress) = %d, want %d", cfg.WIPLimit("in-progress"), wantWIP)
 	}
 	if cfg.ClaimTimeout != "1h" {
 		t.Errorf("ClaimTimeout = %q, want %q", cfg.ClaimTimeout, "1h")

@@ -148,8 +148,9 @@ func TestRunInit_CustomStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Statuses) != 2 || cfg.Statuses[0] != "open" || cfg.Statuses[1] != "closed" {
-		t.Errorf("statuses = %v, want [open, closed]", cfg.Statuses)
+	names := cfg.StatusNames()
+	if len(names) != 2 || names[0] != "open" || names[1] != "closed" {
+		t.Errorf("statuses = %v, want [open, closed]", names)
 	}
 	if cfg.Defaults.Status != "open" {
 		t.Errorf("default status = %q, want %q", cfg.Defaults.Status, "open")

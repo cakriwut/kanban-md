@@ -122,8 +122,10 @@ tasks_dir: tasks
 statuses:
   - backlog
   - todo
-  - in-progress
-  - review
+  - name: in-progress
+    require_claim: true
+  - name: review
+    require_claim: true
   - done
   - archived
 priorities:
@@ -548,12 +550,17 @@ kanban-md is designed for concurrent work by multiple agents (AI or human) throu
 
 Claims provide cooperative locking — an agent claims a task before working on it, preventing other agents from picking the same task. Claims expire after the configured timeout (default: 1 hour).
 
+Statuses with `require_claim: true` (default: `in-progress` and `review`) enforce that every `move` or `edit` includes `--claim <name>`. This prevents accidental anonymous moves in multi-agent environments.
+
 ```bash
 # Agent picks next available task
 kanban-md pick --claim agent-1 --move in-progress
 
+# Move to review (require_claim enforced — must include --claim)
+kanban-md move 5 review --claim agent-1
+
 # Agent finishes and releases
-kanban-md edit 5 --release
+kanban-md edit 5 --release --force
 kanban-md move 5 done
 
 # Another agent picks from a specific queue

@@ -121,7 +121,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 func applyCreateFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) error {
 	if v, _ := cmd.Flags().GetString("status"); v != "" {
-		if err := task.ValidateStatus(v, cfg.Statuses); err != nil {
+		if err := task.ValidateStatus(v, cfg.StatusNames()); err != nil {
 			return err
 		}
 		t.Status = v

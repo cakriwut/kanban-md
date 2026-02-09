@@ -60,7 +60,7 @@ func configAccessors() map[string]configAccessor {
 			writable: true,
 		},
 		"statuses": {
-			get: func(c *config.Config) any { return c.Statuses },
+			get: func(c *config.Config) any { return c.StatusNames() },
 		},
 		"priorities": {
 			get: func(c *config.Config) any { return c.Priorities },
@@ -68,9 +68,9 @@ func configAccessors() map[string]configAccessor {
 		"defaults.status": {
 			get: func(c *config.Config) any { return c.Defaults.Status },
 			set: func(c *config.Config, v string) error {
-				if config.IndexOf(c.Statuses, v) < 0 {
+				if config.IndexOf(c.StatusNames(), v) < 0 {
 					return clierr.Newf(clierr.InvalidInput,
-						"invalid default status %q; allowed: %s", v, strings.Join(c.Statuses, ", "))
+						"invalid default status %q; allowed: %s", v, strings.Join(c.StatusNames(), ", "))
 				}
 				c.Defaults.Status = v
 				return nil

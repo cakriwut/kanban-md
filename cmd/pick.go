@@ -56,12 +56,12 @@ func runPick(cmd *cobra.Command, _ []string) error {
 
 func validatePickFlags(cfg *config.Config, statusFilter, moveTarget string) error {
 	if statusFilter != "" {
-		if err := task.ValidateStatus(statusFilter, cfg.Statuses); err != nil {
+		if err := task.ValidateStatus(statusFilter, cfg.StatusNames()); err != nil {
 			return err
 		}
 	}
 	if moveTarget != "" {
-		if err := task.ValidateStatus(moveTarget, cfg.Statuses); err != nil {
+		if err := task.ValidateStatus(moveTarget, cfg.StatusNames()); err != nil {
 			return err
 		}
 	}

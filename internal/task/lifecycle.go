@@ -12,7 +12,7 @@ import (
 //   - Clears Completed when moving away from terminal status (reopening).
 func UpdateTimestamps(t *Task, oldStatus, newStatus string, cfg *config.Config) {
 	now := time.Now()
-	initialStatus := cfg.Statuses[0]
+	initialStatus := cfg.StatusNames()[0]
 
 	// Set Started on first move out of initial status (never overwrite).
 	if t.Started == nil && oldStatus == initialStatus && newStatus != initialStatus {

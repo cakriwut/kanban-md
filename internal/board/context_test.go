@@ -146,8 +146,10 @@ func TestRenderContextMarkdown(t *testing.T) {
 
 func TestComputeSummaryCustomStatuses(t *testing.T) {
 	cfg := &config.Config{
-		Board:      config.BoardConfig{Name: "Custom"},
-		Statuses:   []string{"new", "accepted", "active", "done"},
+		Board: config.BoardConfig{Name: "Custom"},
+		Statuses: []config.StatusConfig{
+			{Name: "new"}, {Name: "accepted"}, {Name: "active"}, {Name: "done"},
+		},
 		Priorities: []string{"low", "medium", "high"},
 	}
 	now := time.Now()
@@ -170,8 +172,10 @@ func TestComputeSummaryCustomStatuses(t *testing.T) {
 
 func TestReadySectionUsesSecondStatus(t *testing.T) {
 	cfg := &config.Config{
-		Board:      config.BoardConfig{Name: "Custom"},
-		Statuses:   []string{"new", "accepted", "active", "done"},
+		Board: config.BoardConfig{Name: "Custom"},
+		Statuses: []config.StatusConfig{
+			{Name: "new"}, {Name: "accepted"}, {Name: "active"}, {Name: "done"},
+		},
 		Priorities: []string{"low", "medium", "high"},
 	}
 	now := time.Now()

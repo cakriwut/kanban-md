@@ -42,6 +42,7 @@ var migrations = map[int]func(*Config) error{
 	3: migrateV3ToV4,
 	4: migrateV4ToV5,
 	5: migrateV5ToV6,
+	6: migrateV6ToV7,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -85,9 +86,19 @@ func migrateV4ToV5(cfg *Config) error { //nolint:unparam // signature must match
 
 // migrateV5ToV6 adds the "archived" status for soft-delete support.
 func migrateV5ToV6(cfg *Config) error { //nolint:unparam // signature must match migrations map type
-	if !contains(cfg.Statuses, ArchivedStatus) {
-		cfg.Statuses = append(cfg.Statuses, ArchivedStatus)
+	names := cfg.StatusNames()
+	if !contains(names, ArchivedStatus) {
+		cfg.Statuses = append(cfg.Statuses, StatusConfig{Name: ArchivedStatus})
 	}
 	cfg.Version = 6
+	return nil
+}
+
+// migrateV6ToV7 converts statuses to StatusConfig format with require_claim support.
+// The UnmarshalYAML on StatusConfig handles parsing both string and mapping forms,
+// so this migration only needs to bump the version. Existing statuses get
+// require_claim: false (the zero value) — opting in is a manual step for existing users.
+func migrateV6ToV7(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	cfg.Version = 7
 	return nil
 }

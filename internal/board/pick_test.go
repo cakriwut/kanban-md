@@ -11,7 +11,9 @@ import (
 
 func newPickTestConfig() *config.Config {
 	return &config.Config{
-		Statuses:   []string{"backlog", "todo", "in-progress", "done"},
+		Statuses: []config.StatusConfig{
+			{Name: "backlog"}, {Name: "todo"}, {Name: "in-progress"}, {Name: "done"},
+		},
 		Priorities: []string{"low", "medium", "high", "critical"},
 		Classes: []config.ClassConfig{
 			{Name: "expedite", WIPLimit: 1, BypassColumnWIP: true},

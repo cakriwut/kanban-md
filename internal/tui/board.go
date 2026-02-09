@@ -215,7 +215,7 @@ func (b *Board) handleEnter() {
 
 func (b *Board) handleMoveStart() {
 	if t := b.selectedTask(); t != nil {
-		b.moveStatuses = b.cfg.Statuses
+		b.moveStatuses = b.cfg.StatusNames()
 		b.moveCursor = b.cfg.StatusIndex(t.Status)
 		if b.moveCursor < 0 {
 			b.moveCursor = 0

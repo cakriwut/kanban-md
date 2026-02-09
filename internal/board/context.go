@@ -131,7 +131,7 @@ func computeSummary(cfg *config.Config, tasks []*task.Task, now time.Time) Conte
 	// Check WIP warnings.
 	statusCounts := CountByStatus(tasks)
 	var wipWarnings []string
-	for _, s := range cfg.Statuses {
+	for _, s := range cfg.StatusNames() {
 		limit := cfg.WIPLimit(s)
 		if limit > 0 && statusCounts[s] >= limit {
 			wipWarnings = append(wipWarnings,
@@ -184,10 +184,11 @@ func buildBlockedSection(_ *config.Config, tasks []*task.Task) []ContextItem {
 }
 
 func buildReadySection(cfg *config.Config, tasks []*task.Task) []ContextItem {
-	if len(cfg.Statuses) < 2 { //nolint:mnd // need at least 2 statuses for a ready column
+	names := cfg.StatusNames()
+	if len(names) < 2 { //nolint:mnd // need at least 2 statuses for a ready column
 		return nil
 	}
-	readyStatus := cfg.Statuses[1]
+	readyStatus := names[1]
 	unblockedTasks := FilterUnblocked(tasks, cfg)
 
 	var items []ContextItem
@@ -239,7 +240,8 @@ func sortByPriority(items []ContextItem, cfg *config.Config) {
 }
 
 func isFirstStatus(cfg *config.Config, status string) bool {
-	return len(cfg.Statuses) > 0 && cfg.Statuses[0] == status
+	names := cfg.StatusNames()
+	return len(names) > 0 && names[0] == status
 }
 
 // RenderContextMarkdown renders context data as markdown wrapped in sentinel markers.

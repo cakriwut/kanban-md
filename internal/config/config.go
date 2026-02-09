@@ -25,7 +25,7 @@ type Config struct {
 	Version      int            `yaml:"version"`
 	Board        BoardConfig    `yaml:"board"`
 	TasksDir     string         `yaml:"tasks_dir"`
-	Statuses     []string       `yaml:"statuses"`
+	Statuses     []StatusConfig `yaml:"statuses"`
 	Priorities   []string       `yaml:"priorities"`
 	Defaults     DefaultsConfig `yaml:"defaults"`
 	WIPLimits    map[string]int `yaml:"wip_limits,omitempty"`
@@ -64,6 +64,24 @@ type TUIConfig struct {
 	AgeThresholds []AgeThreshold `yaml:"age_thresholds,omitempty"`
 }
 
+// StatusConfig defines a status column and its enforcement rules.
+type StatusConfig struct {
+	Name         string `yaml:"name" json:"name"`
+	RequireClaim bool   `yaml:"require_claim,omitempty" json:"require_claim,omitempty"`
+}
+
+// UnmarshalYAML allows StatusConfig to be parsed from either a plain string
+// (old format: "backlog") or a mapping (new format: {name: backlog, require_claim: true}).
+// This provides seamless backward compatibility with v6 configs.
+func (s *StatusConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		s.Name = value.Value
+		return nil
+	}
+	type plain StatusConfig
+	return value.Decode((*plain)(s))
+}
+
 // ClassConfig defines a class of service and its WIP rules.
 type ClassConfig struct {
 	Name            string `yaml:"name" json:"name"`
@@ -92,7 +110,7 @@ func NewDefault(name string) *Config {
 		Version:      CurrentVersion,
 		Board:        BoardConfig{Name: name},
 		TasksDir:     DefaultTasksDir,
-		Statuses:     append([]string{}, DefaultStatuses...),
+		Statuses:     append([]StatusConfig{}, DefaultStatuses...),
 		Priorities:   append([]string{}, DefaultPriorities...),
 		Classes:      append([]ClassConfig{}, DefaultClasses...),
 		ClaimTimeout: DefaultClaimTimeout,
@@ -111,6 +129,25 @@ func (c *Config) SetDir(dir string) {
 	c.dir = dir
 }
 
+// StatusNames returns the ordered list of status name strings.
+func (c *Config) StatusNames() []string {
+	names := make([]string, len(c.Statuses))
+	for i, s := range c.Statuses {
+		names[i] = s.Name
+	}
+	return names
+}
+
+// StatusRequiresClaim returns true if the given status has require_claim set.
+func (c *Config) StatusRequiresClaim(status string) bool {
+	for _, s := range c.Statuses {
+		if s.Name == status {
+			return s.RequireClaim
+		}
+	}
+	return false
+}
+
 // Validate checks the config for errors.
 func (c *Config) Validate() error {
 	if c.Version != CurrentVersion {
@@ -122,10 +159,11 @@ func (c *Config) Validate() error {
 	if c.TasksDir == "" {
 		return fmt.Errorf("%w: tasks_dir is required", ErrInvalid)
 	}
-	if len(c.Statuses) < 2 { //nolint:mnd // minimum 2 statuses for a kanban board
+	names := c.StatusNames()
+	if len(names) < 2 { //nolint:mnd // minimum 2 statuses for a kanban board
 		return fmt.Errorf("%w: at least 2 statuses are required", ErrInvalid)
 	}
-	if hasDuplicates(c.Statuses) {
+	if hasDuplicates(names) {
 		return fmt.Errorf("%w: statuses contain duplicates", ErrInvalid)
 	}
 	if len(c.Priorities) < 1 {
@@ -134,7 +172,7 @@ func (c *Config) Validate() error {
 	if hasDuplicates(c.Priorities) {
 		return fmt.Errorf("%w: priorities contain duplicates", ErrInvalid)
 	}
-	if !contains(c.Statuses, c.Defaults.Status) {
+	if !contains(names, c.Defaults.Status) {
 		return fmt.Errorf("%w: default status %q not in statuses list", ErrInvalid, c.Defaults.Status)
 	}
 	if !contains(c.Priorities, c.Defaults.Priority) {
@@ -159,8 +197,9 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) validateWIPLimits() error {
+	names := c.StatusNames()
 	for status, limit := range c.WIPLimits {
-		if !contains(c.Statuses, status) {
+		if !contains(names, status) {
 			return fmt.Errorf("%w: wip_limits references unknown status %q", ErrInvalid, status)
 		}
 		if limit < 0 {
@@ -416,29 +455,31 @@ func FindDir(startDir string) (string, error) {
 // are considered terminal. If the board has no archived status, the last
 // status is terminal (backward-compatible behavior).
 func (c *Config) IsTerminalStatus(s string) bool {
-	if len(c.Statuses) == 0 {
+	names := c.StatusNames()
+	if len(names) == 0 {
 		return false
 	}
 	if s == ArchivedStatus {
 		return true
 	}
-	lastIdx := len(c.Statuses) - 1
-	if c.Statuses[lastIdx] == ArchivedStatus && lastIdx > 0 {
-		return s == c.Statuses[lastIdx-1]
+	lastIdx := len(names) - 1
+	if names[lastIdx] == ArchivedStatus && lastIdx > 0 {
+		return s == names[lastIdx-1]
 	}
-	return s == c.Statuses[lastIdx]
+	return s == names[lastIdx]
 }
 
 // IsArchivedStatus returns true if the given status is the archived status.
 func (c *Config) IsArchivedStatus(s string) bool {
-	return s == ArchivedStatus && contains(c.Statuses, ArchivedStatus)
+	return s == ArchivedStatus && contains(c.StatusNames(), ArchivedStatus)
 }
 
 // BoardStatuses returns the statuses that should appear as board columns,
 // excluding the archived status.
 func (c *Config) BoardStatuses() []string {
-	result := make([]string, 0, len(c.Statuses))
-	for _, s := range c.Statuses {
+	names := c.StatusNames()
+	result := make([]string, 0, len(names))
+	for _, s := range names {
 		if s != ArchivedStatus {
 			result = append(result, s)
 		}
@@ -450,8 +491,9 @@ func (c *Config) BoardStatuses() []string {
 // i.e. statuses where work is happening. Used by pick to determine default
 // candidate pools.
 func (c *Config) ActiveStatuses() []string {
-	result := make([]string, 0, len(c.Statuses))
-	for _, s := range c.Statuses {
+	names := c.StatusNames()
+	result := make([]string, 0, len(names))
+	for _, s := range names {
 		if !c.IsTerminalStatus(s) {
 			result = append(result, s)
 		}
@@ -461,7 +503,7 @@ func (c *Config) ActiveStatuses() []string {
 
 // StatusIndex returns the index of a status in the configured order, or -1.
 func (c *Config) StatusIndex(status string) int {
-	return IndexOf(c.Statuses, status)
+	return IndexOf(c.StatusNames(), status)
 }
 
 // PriorityIndex returns the index of a priority in the configured order, or -1.

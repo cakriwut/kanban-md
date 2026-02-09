@@ -58,7 +58,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	cfg.SetDir(absDir)
 
 	if statuses, _ := cmd.Flags().GetStringSlice("statuses"); len(statuses) > 0 {
-		cfg.Statuses = statuses
+		sc := make([]config.StatusConfig, len(statuses))
+		for i, s := range statuses {
+			sc[i] = config.StatusConfig{Name: s}
+		}
+		cfg.Statuses = sc
 		cfg.Defaults.Status = statuses[0]
 	}
 
@@ -95,14 +99,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 			"name":    name,
 			"config":  cfg.ConfigPath(),
 			"tasks":   tasksDir,
-			"columns": strings.Join(cfg.Statuses, ","),
+			"columns": strings.Join(cfg.StatusNames(), ","),
 		})
 	}
 
 	output.Messagef(os.Stdout, "Initialized board %q in %s", name, absDir)
 	output.Messagef(os.Stdout, "  Config:  %s", cfg.ConfigPath())
 	output.Messagef(os.Stdout, "  Tasks:   %s", tasksDir)
-	output.Messagef(os.Stdout, "  Columns: %s", strings.Join(cfg.Statuses, ", "))
+	output.Messagef(os.Stdout, "  Columns: %s", strings.Join(cfg.StatusNames(), ", "))
 	output.Messagef(os.Stdout, "  Hint:    Install agent skills with: kanban-md skill install")
 	return nil
 }
