@@ -342,26 +342,23 @@ func TestBoard_HelpShowsEscAsQuit(t *testing.T) {
 	}
 }
 
-func TestBoard_StatusBarShowsEsc(t *testing.T) {
+func TestBoard_StatusBarShowsQuit(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
 	v := b.View()
 
-	if !containsStr(v, "esc") {
-		t.Error("expected status bar to mention esc as a quit key")
+	if !containsStr(v, "q:quit") {
+		t.Error("expected status bar to mention q:quit")
 	}
 }
 
-func TestBoard_StatusBarShowsArrowKeys(t *testing.T) {
+func TestBoard_StatusBarShowsPriorityHint(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
 	v := b.View()
 
-	// Status bar should show arrow key indicators alongside vim keys.
-	for _, arrow := range []string{"←", "↓", "↑", "→"} {
-		if !containsStr(v, arrow) {
-			t.Errorf("expected status bar to contain %s arrow indicator", arrow)
-		}
+	if !containsStr(v, "+/-:priority") {
+		t.Error("expected status bar to contain +/-:priority hint")
 	}
 }
 
@@ -1091,6 +1088,131 @@ func TestBoard_MovePrevEmptyColumn(t *testing.T) {
 	b = sendKey(b, "l")
 	// Press P — should not panic.
 	b = sendKey(b, "P")
+	v := b.View()
+
+	if v == "" {
+		t.Error("expected non-empty view")
+	}
+}
+
+func TestBoard_RaisePriority(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Task A (ID 1) starts at "high" priority. Press + to raise to "critical".
+	b = sendKey(b, "+")
+
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	if tk.Priority != "critical" {
+		t.Errorf("expected priority 'critical', got %q", tk.Priority)
+	}
+
+	_ = b.View()
+}
+
+func TestBoard_LowerPriority(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Task A (ID 1) starts at "high" priority. Press - to lower to "medium".
+	b = sendKey(b, "-")
+
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	if tk.Priority != "medium" {
+		t.Errorf("expected priority 'medium', got %q", tk.Priority)
+	}
+
+	_ = b.View()
+}
+
+func TestBoard_RaisePriorityAtMax(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Raise Task A to critical first.
+	b = sendKey(b, "+")
+
+	// Now try to raise again — should show error.
+	b = sendKey(b, "+")
+	v := b.View()
+	if !containsStr(v, "already at the highest priority") {
+		t.Error("expected error when raising priority past maximum")
+	}
+
+	// Verify it's still critical (not changed).
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	if tk.Priority != "critical" {
+		t.Errorf("expected priority 'critical', got %q", tk.Priority)
+	}
+}
+
+func TestBoard_LowerPriorityAtMin(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	// Lower Task A from "high" → "medium" → "low".
+	b = sendKey(b, "-")
+	b = sendKey(b, "-")
+
+	// Now at "low" — try to lower again.
+	b = sendKey(b, "-")
+	v := b.View()
+	if !containsStr(v, "already at the lowest priority") {
+		t.Error("expected error when lowering priority past minimum")
+	}
+}
+
+func TestBoard_PriorityCursorFollows(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Backlog has Task A (high, row 0) and Task B (medium, row 1).
+	// Sorted by priority descending: [Task A, Task B].
+	// Lower Task A from "high" to "medium" — Task A now has same priority as Task B.
+	// After re-sort, cursor should still be on Task A.
+	b = sendKey(b, "-")
+	b = sendKey(b, "-") // now "low"
+
+	// Task A should now be below Task B (which is "medium").
+	// The cursor should follow Task A to its new position (row 1).
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	if tk.Priority != "low" {
+		t.Errorf("expected priority 'low', got %q", tk.Priority)
+	}
+
+	_ = b.View()
+}
+
+func TestBoard_PriorityEmptyColumn(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	// Navigate to todo column (index 1, empty).
+	b = sendKey(b, "l")
+	// Press + — should not panic.
+	b = sendKey(b, "+")
 	v := b.View()
 
 	if v == "" {

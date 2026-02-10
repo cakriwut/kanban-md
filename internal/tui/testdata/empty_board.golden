@@ -37,4 +37,4 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- Empty Board | 0 tasks | ←↓↑→/hjkl:navigate enter:detail m:move N:next P:prev d:delete ?:help esc/q:quit                
+ Empty Board | 0 tasks | hjkl:nav m:move N/P:status +/-:priority d:del ?:help q:quit                                    

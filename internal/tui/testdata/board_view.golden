@@ -37,4 +37,4 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- Test Board | 4 tasks | ←↓↑→/hjkl:navigate enter:detail m:move N:next P:prev d:delete ?:help esc/q:quit                 
+ Test Board | 4 tasks | hjkl:nav m:move N/P:status +/-:priority d:del ?:help q:quit                                     

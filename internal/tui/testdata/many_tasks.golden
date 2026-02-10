@@ -27,4 +27,4 @@
                                                                                                     
                                                                                                     
                                                                                                     
- Scroll Test | 18 tasks | ←↓↑→/hjkl:navigate enter:detail m:move N:next P:prev d:delete ?...        
+ Scroll Test | 18 tasks | hjkl:nav m:move N/P:status +/-:priority d:del ?:help q:quit               

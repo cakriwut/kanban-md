@@ -168,6 +168,10 @@ func (b *Board) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b.moveNext()
 	case "P":
 		return b.movePrev()
+	case "+":
+		return b.raisePriority()
+	case "-":
+		return b.lowerPriority()
 	case "d":
 		b.handleDeleteStart()
 	case "r":
@@ -464,6 +468,67 @@ func (b *Board) movePrev() (tea.Model, tea.Cmd) {
 	}
 
 	return b.executeMove(boardStatuses[idx-1])
+}
+
+// raisePriority increases the selected task's priority by one level.
+func (b *Board) raisePriority() (tea.Model, tea.Cmd) {
+	t := b.selectedTask()
+	if t == nil {
+		return b, nil
+	}
+
+	idx := b.cfg.PriorityIndex(t.Priority)
+	if idx < 0 || idx >= len(b.cfg.Priorities)-1 {
+		b.err = fmt.Errorf("task #%d is already at the highest priority", t.ID)
+		return b, nil
+	}
+
+	return b.executePriorityChange(t, b.cfg.Priorities[idx+1])
+}
+
+// lowerPriority decreases the selected task's priority by one level.
+func (b *Board) lowerPriority() (tea.Model, tea.Cmd) {
+	t := b.selectedTask()
+	if t == nil {
+		return b, nil
+	}
+
+	idx := b.cfg.PriorityIndex(t.Priority)
+	if idx <= 0 {
+		b.err = fmt.Errorf("task #%d is already at the lowest priority", t.ID)
+		return b, nil
+	}
+
+	return b.executePriorityChange(t, b.cfg.Priorities[idx-1])
+}
+
+func (b *Board) executePriorityChange(t *task.Task, newPriority string) (tea.Model, tea.Cmd) {
+	oldPriority := t.Priority
+	taskID := t.ID
+	t.Priority = newPriority
+	t.Updated = time.Now()
+
+	if err := task.Write(t.File, t); err != nil {
+		b.err = fmt.Errorf("updating priority for task #%d: %w", taskID, err)
+		t.Priority = oldPriority // revert
+		return b, nil
+	}
+
+	board.LogMutation(b.cfg.Dir(), "priority", taskID, oldPriority+" -> "+newPriority)
+	b.loadTasks()
+
+	// After re-sort, find the task at its new position and follow it.
+	col := b.currentColumn()
+	if col != nil {
+		for i, ct := range col.tasks {
+			if ct.ID == taskID {
+				b.activeRow = i
+				break
+			}
+		}
+	}
+	b.ensureVisible()
+	return b, nil
 }
 
 // indexOf returns the index of item in slice, or -1.
@@ -922,7 +987,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 
 func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
-	status := fmt.Sprintf(" %s | %d tasks | ←↓↑→/hjkl:navigate enter:detail m:move N:next P:prev d:delete ?:help esc/q:quit",
+	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav m:move N/P:status +/-:priority d:del ?:help q:quit",
 		b.cfg.Board.Name, total)
 	status = truncate(status, b.width)
 
@@ -1096,6 +1161,8 @@ func (b *Board) viewHelp() string {
 		{"m", "Move task (status picker)"},
 		{"N", "Move task to next status"},
 		{"P", "Move task to previous status"},
+		{"+", "Raise task priority"},
+		{"-", "Lower task priority"},
 		{"d", "Delete task"},
 		{"r", "Refresh board"},
 		{"?", "Show this help"},
