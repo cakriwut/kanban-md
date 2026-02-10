@@ -3,6 +3,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ const (
 	viewMove
 	viewConfirmDelete
 	viewHelp
+	viewCreate
 )
 
 // Key and layout constants.
@@ -63,6 +65,10 @@ type Board struct {
 	// Delete confirmation.
 	deleteID    int
 	deleteTitle string
+
+	// Create view.
+	createInput  string
+	createStatus string // column where task will be created
 }
 
 // column groups tasks belonging to a single status.
@@ -125,6 +131,8 @@ func (b *Board) View() string {
 		return b.viewDeleteConfirm()
 	case viewHelp:
 		return b.viewHelp()
+	case viewCreate:
+		return b.viewCreateDialog()
 	default:
 		return b.viewBoard()
 	}
@@ -147,6 +155,8 @@ func (b *Board) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b.handleDeleteKey(msg)
 	case viewHelp:
 		return b.handleHelpKey(msg)
+	case viewCreate:
+		return b.handleCreateKey(msg)
 	}
 
 	return b, nil
@@ -172,6 +182,8 @@ func (b *Board) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b.raisePriority()
 	case "-":
 		return b.lowerPriority()
+	case "c":
+		b.handleCreateStart()
 	case "d":
 		b.handleDeleteStart()
 	case "r":
@@ -231,6 +243,79 @@ func (b *Board) handleDeleteStart() {
 		b.deleteTitle = t.Title
 		b.view = viewConfirmDelete
 	}
+}
+
+func (b *Board) handleCreateStart() {
+	col := b.currentColumn()
+	if col == nil {
+		return
+	}
+	b.createInput = ""
+	b.createStatus = col.status
+	b.view = viewCreate
+}
+
+func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEscape:
+		b.view = viewBoard
+		b.createInput = ""
+	case tea.KeyEnter:
+		return b.executeCreate()
+	case tea.KeyBackspace:
+		if len(b.createInput) > 0 {
+			b.createInput = b.createInput[:len(b.createInput)-1]
+		}
+	case tea.KeyRunes:
+		b.createInput += string(msg.Runes)
+	case tea.KeySpace:
+		b.createInput += " "
+	}
+	return b, nil
+}
+
+func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
+	title := strings.TrimSpace(b.createInput)
+	if title == "" {
+		b.view = viewBoard
+		b.createInput = ""
+		return b, nil
+	}
+
+	now := b.now()
+	id := b.cfg.NextID
+	t := &task.Task{
+		ID:       id,
+		Title:    title,
+		Status:   b.createStatus,
+		Priority: b.cfg.Defaults.Priority,
+		Class:    b.cfg.Defaults.Class,
+		Created:  now,
+		Updated:  now,
+	}
+
+	slug := task.GenerateSlug(title)
+	filename := task.GenerateFilename(id, slug)
+	path := filepath.Join(b.cfg.TasksPath(), filename)
+
+	if err := task.Write(path, t); err != nil {
+		b.err = fmt.Errorf("creating task: %w", err)
+		b.view = viewBoard
+		b.createInput = ""
+		return b, nil
+	}
+
+	b.cfg.NextID++
+	if err := b.cfg.Save(); err != nil {
+		b.err = fmt.Errorf("saving config after create: %w", err)
+	} else {
+		board.LogMutation(b.cfg.Dir(), "create", id, title)
+	}
+
+	b.view = viewBoard
+	b.createInput = ""
+	b.loadTasks()
+	return b, nil
 }
 
 func (b *Board) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -987,7 +1072,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 
 func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
-	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav m:move N/P:status +/-:priority d:del ?:help q:quit",
+	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav c:create m:move N/P:status +/-:priority d:del ?:help q:quit",
 		b.cfg.Board.Name, total)
 	status = truncate(status, b.width)
 
@@ -1151,6 +1236,16 @@ func (b *Board) viewDeleteConfirm() string {
 	return dialogStyle.Render(content)
 }
 
+func (b *Board) viewCreateDialog() string {
+	title := lipgloss.NewStyle().Bold(true).Render(
+		fmt.Sprintf("Create task in %s:", b.createStatus))
+	input := b.createInput + "▏"
+	hint := dimStyle.Render("enter:create  esc:cancel")
+
+	content := title + "\n\n" + input + "\n\n" + hint
+	return dialogStyle.Render(content)
+}
+
 func (b *Board) viewHelp() string {
 	help := []struct{ key, desc string }{
 		{"h/←", "Move to left column"},
@@ -1158,6 +1253,7 @@ func (b *Board) viewHelp() string {
 		{"j/↓", "Move cursor down"},
 		{"k/↑", "Move cursor up"},
 		{"enter", "Show task detail"},
+		{"c", "Create new task in column"},
 		{"m", "Move task (status picker)"},
 		{"N", "Move task to next status"},
 		{"P", "Move task to previous status"},
