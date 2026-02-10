@@ -17,9 +17,9 @@ func lockFile(f *os.File) error {
 	return windows.LockFileEx(
 		windows.Handle(f.Fd()),
 		lockfileExclusiveLock,
-		0,          // reserved
-		1,          // lock 1 byte
-		0,          // high word
+		0, // reserved
+		1, // lock 1 byte
+		0, // high word
 		ol,
 	)
 }
