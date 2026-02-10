@@ -426,8 +426,16 @@ func findProjectRoot() (string, error) {
 	}
 }
 
+// isInteractiveFn is the function used to check for an interactive terminal.
+// It is a variable so tests can override it.
+var isInteractiveFn = defaultIsInteractive
+
 // isInteractive returns true if stdin is a real terminal (not /dev/null, NUL, or a pipe).
 func isInteractive() bool {
+	return isInteractiveFn()
+}
+
+func defaultIsInteractive() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
@@ -438,10 +446,18 @@ type menuItem struct {
 	selected    bool
 }
 
+// multiSelectFn is the function used for interactive multi-select menus.
+// It is a variable so tests can override it.
+var multiSelectFn = defaultMultiSelect
+
 // multiSelect displays an interactive multi-select menu using bubbletea
 // and returns the indices of selected items. Navigate with j/k or arrows,
 // space to toggle, enter to confirm.
 func multiSelect(prompt string, items []menuItem) []int {
+	return multiSelectFn(prompt, items)
+}
+
+func defaultMultiSelect(prompt string, items []menuItem) []int {
 	m := selectModel{
 		prompt: prompt,
 		items:  items,
