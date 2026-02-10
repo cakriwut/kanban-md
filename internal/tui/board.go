@@ -653,6 +653,17 @@ func (b *Board) viewBoard() string {
 	}
 
 	boardView := lipgloss.JoinHorizontal(lipgloss.Top, renderedCols...)
+
+	// Pad board view to fill available height so the status bar stays at the
+	// bottom regardless of how many card lines the visible tasks consume.
+	targetHeight := b.height - boardChrome
+	if targetHeight > 0 {
+		actual := strings.Count(boardView, "\n") + 1
+		if actual < targetHeight {
+			boardView += strings.Repeat("\n", targetHeight-actual)
+		}
+	}
+
 	statusBar := b.renderStatusBar()
 
 	return lipgloss.JoinVertical(lipgloss.Left, boardView, "", statusBar)

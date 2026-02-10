@@ -1395,3 +1395,93 @@ func TestBoard_DurationHiddenByConfig(t *testing.T) {
 		}
 	}
 }
+
+// --- Bug #130: Bottom line jumps when scrolling variable-height cards ---
+
+// setupVariableHeightBoard creates a board with title_lines=3 and tasks that
+// have varying title lengths, causing cards to have different heights.
+func setupVariableHeightBoard(t *testing.T) *tui.Board {
+	t.Helper()
+
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	tasksDir := filepath.Join(kanbanDir, "tasks")
+
+	if err := os.MkdirAll(tasksDir, 0o750); err != nil {
+		t.Fatalf("creating dirs: %v", err)
+	}
+
+	cfg := config.NewDefault("Variable Height Test")
+	const testTitleLines = 3
+	cfg.TUI.TitleLines = testTitleLines
+	cfg.SetDir(kanbanDir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	// Tasks with varying title lengths → different card heights when title_lines=3.
+	tasks := []struct {
+		id       int
+		title    string
+		status   string
+		priority string
+	}{
+		// Mix of short titles (1 line) and long titles (2-3 lines) to
+		// produce variable card heights when title_lines=3.
+		{1, "A", statusTodo, "high"},
+		{2, "Implement comprehensive OAuth2 authentication with SAML support and multi-factor verification", statusTodo, "medium"},
+		{3, "B", statusTodo, "low"},
+		{4, "Design the database schema for the new microservice architecture and migration plan", statusTodo, "high"},
+		{5, "C", statusTodo, "medium"},
+		{6, "Set up CI pipeline with automated testing linting and deployment to staging environment", statusTodo, "low"},
+		{7, "D", statusTodo, "high"},
+		{8, "E", statusTodo, "medium"},
+	}
+
+	for _, tt := range tasks {
+		tk := &task.Task{
+			ID:       tt.id,
+			Title:    tt.title,
+			Status:   tt.status,
+			Priority: tt.priority,
+			Updated:  testRefTime,
+		}
+		path := filepath.Join(tasksDir, task.GenerateFilename(tt.id, tt.title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task: %v", err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.SetNow(testNow)
+	b.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	return b
+}
+
+func TestBoard_BottomLineStableWhenScrolling(t *testing.T) {
+	b := setupVariableHeightBoard(t)
+
+	const termHeight = 20
+
+	// Collect line counts as we scroll through all tasks.
+	var lineCounts []int
+	for i := 0; i < 8; i++ {
+		v := b.View()
+		lines := strings.Split(v, "\n")
+		lineCounts = append(lineCounts, len(lines))
+
+		if len(lines) != termHeight {
+			t.Errorf("after %d scrolls: expected exactly %d lines, got %d",
+				i, termHeight, len(lines))
+		}
+		b = sendKey(b, "j")
+	}
+
+	// All line counts must be identical (bottom line stays put).
+	for i := 1; i < len(lineCounts); i++ {
+		if lineCounts[i] != lineCounts[0] {
+			t.Errorf("line count changed from %d to %d at scroll step %d — bottom line jumped",
+				lineCounts[0], lineCounts[i], i)
+		}
+	}
+}
