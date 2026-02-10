@@ -228,6 +228,10 @@ This project uses its own kanban board (in `kanban/`) to track work. Use the CLI
    go run ./cmd/kanban-md delete <ID>
    ```
 
+### "Add ticket" requests
+
+When the user says "add ticket" or "add a ticket", create the task on the board (with research to include useful details in the body) but do **not** start working on it. The intent is to capture the idea for later, not to implement it immediately.
+
 ### Conventions
 
 - **Tags**: Use `layer-N` tags (e.g. `layer-3`, `layer-4`) to group tasks by roadmap layer.

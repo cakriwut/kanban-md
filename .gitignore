@@ -11,6 +11,9 @@
 # Test binary, built with `go test -c`
 *.test
 
+# Snapshot test diff artifacts (written by assertGolden on failure)
+*.golden.got
+
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 coverage.html
