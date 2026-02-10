@@ -10,7 +10,7 @@ allowed-tools:
   - Bash(kanban-md *)
   - Bash(kbmd *)
 ---
-<!-- kanban-md-skill-version: dev -->
+<!-- kanban-md-skill-version: 0.28.1 -->
 
 # kanban-md
 

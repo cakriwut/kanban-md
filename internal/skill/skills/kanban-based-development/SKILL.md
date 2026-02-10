@@ -4,7 +4,8 @@ description: >
   Autonomous, parallel-safe development workflow using kanban-md.
   Use when the user asks to work through tasks, do kanban-based development,
   or when multiple agents need to coordinate work on the same codebase.
-  Covers claim mechanics, git worktrees, and status lifecycle.
+  Optimized for explicit handoffs and a "defer to user" protocol when
+  human intervention is required.
 allowed-tools:
   - Bash(kanban-md *)
   - Bash(kbmd *)
@@ -16,24 +17,61 @@ allowed-tools:
 
 # Kanban-Based Development
 
-A methodology for autonomous, parallel-safe development using kanban-md to manage tasks and git worktrees to isolate work.
+Autonomous, parallel-safe development using `kanban-md` to coordinate work on a shared board.
+Claims prevent duplicate work; `review` is the waiting room (handoff, user action, merge, decisions).
 
 ## Multi-Agent Environment
 
 **This board is shared.** Multiple agents and humans may be working on it simultaneously. You are NOT the only one reading or modifying tasks. This means:
 
 - Another agent may claim a task between the time you list it and try to pick it.
-- Another agent may be merging into main while you are trying to merge.
 - Tasks you saw as available a moment ago may no longer be available.
 
 The **claim** mechanic is the coordination primitive. It prevents two agents from working on the same task. **You MUST claim a task before starting any work on it, and you MUST only pick unclaimed tasks.** Violating this causes duplicate work, merge conflicts, and wasted effort.
 
-## Prerequisites
+## Non-Negotiables
 
-- Use the installed `kanban-md` CLI for all board interactions
-- Ensure you are on the `main` branch before starting
+- **Claim before you change anything.** No task edits, no code changes.
+- **One active task per agent.** Keep at most one task in `in-progress` for your agent session.
+- **Never steal a live claim.** If it's claimed, pick something else.
+- **Never release someone else’s claim.** Only use `edit --release` for your own work (or when the user explicitly asks).
+- **Always leave a handoff.** Before you park a task, write a short update in the body so someone else can continue.
+- **Refresh claims to avoid timeout.** If the task might take longer than `claim_timeout`, periodically renew your claim: `kanban-md edit <ID> --claim <agent>`.
 
-## Agent Identity
+## Board Home vs Worktrees (simple rule)
+
+- **Always run `kanban-md` from board home** (the canonical repo directory that owns the shared board).
+- **Always do code changes in a task worktree.** Never edit code in board home.
+- If the board is git-tracked, **commit board changes on `main` as a separate commit** after the task is merged and moved to `done`.
+
+At the start of the session, determine and remember `<board-home>`:
+
+```bash
+cd <the canonical repo directory that owns the shared board>
+pwd   # remember this path as <board-home>
+```
+
+Recommended: keep two shells (or split panes) open:
+
+- **Board shell** at `<board-home>` for `kanban-md` commands
+- **Worktree shell** at the task worktree for code changes
+
+Do not run multiple mutating `kanban-md` commands in parallel against the same board directory.
+
+If you are unsure you’re using the shared board, run `kanban-md board --compact` and confirm the board name/shape is what you expect.
+
+## Defer-to-User Boundary (exceptions)
+
+By default, agents should take tasks all the way to `done` (worktree → commit → merge → done).
+
+Defer to the user (leave the task in `review` with a handoff) only when you need:
+
+- an important product/spec decision with multiple valid options and no clear winner
+- credentials/access or external actions (push to remote, releases, deployments, ENV variables, etc.)
+- a merge conflict that requires judgment (not just mechanical resolution)
+- repeated test/lint failures you can’t resolve
+
+## Agent Identity (for claims)
 
 Each agent session must generate a unique name to identify itself for claims. At the very start of a session, run:
 
@@ -43,173 +81,208 @@ awk 'length >= 4 && length <= 8 && /^[a-z]+$/' /usr/share/dict/words | sort -R |
 
 This produces a name like `rapidly-almoign` or `fiber-kindly`. **Remember this name in your context** and use it as a literal string in all claim/release commands for the rest of the session. Do not store it in a file or environment variable — those are not persistent or isolated between agents.
 
-Example: if the generated name is `frost-maple`, use `--claim frost-maple` in every claim command.
-
-## Workflow
-
-### 1. Pick and claim a task
-
-Use the `pick` command to atomically find the highest-priority unclaimed, unblocked task and claim it in one step:
+Fallback if `/usr/share/dict/words` is missing:
 
 ```bash
-kanban-md pick --claim <your-agent-name> --move in-progress
+echo "agent-$(date +%s)-$RANDOM"
 ```
 
-To pick from a specific status column:
+Example: if the generated name is `frost-maple`, use `--claim frost-maple` in every claim command.
+
+## Default Loop (worktree → merge → done)
+
+Use `--compact` for board/list/log output whenever available to keep output short.
+
+Before picking work, ensure board home is on `main`:
 
 ```bash
-kanban-md pick --claim <your-agent-name> --move in-progress --status todo
-kanban-md pick --claim <your-agent-name> --move in-progress --status backlog
+cd <board-home>
+git switch main
+git status
+```
+
+### 1) Pick and claim (atomically)
+
+From board home:
+
+Pick only from startable columns to avoid accidentally re-picking `review` work:
+
+```bash
+kanban-md pick --claim <agent> --status todo --move in-progress
+```
+
+If `todo` is empty:
+
+```bash
+kanban-md pick --claim <agent> --status backlog --move in-progress
 ```
 
 This is atomic — if another agent claims the task between your list and claim, `pick` handles it safely. No need to list/choose/claim manually.
 
-If no tasks are available, `pick` will tell you. Wait or check if there are blocked tasks that need unblocking.
-
-### 2. Create a worktree
-
-Create a git worktree for the task so work is isolated from `main` and from other agents:
+After picking, read the full task:
 
 ```bash
-git worktree add ../kanban-md-task-<ID> -b task/<ID>-<short-description>
+kanban-md show <ID>
+```
+
+### 2) Create a worktree (default)
+
+Create a worktree for the task branch from board home:
+
+```bash
+git worktree add ../kanban-md-task-<ID> -b task/<ID>-<kebab-description>
 cd ../kanban-md-task-<ID>
 ```
 
-### 3. Implement and test
+Skip a worktree only for truly non-conflicting work (e.g., board-only changes or writing an untracked research report). If you touch tracked code/config, use a worktree.
 
-Work inside the worktree. The task stays at **in-progress** throughout this step.
+### 3) Implement, test, commit (in the worktree)
 
-1. Implement the fix or feature.
-2. Run tests: `go test ./...`
-3. Run lint: `golangci-lint run ./...`
-4. Update golden files if needed: `go test ./internal/tui/ -run TestSnapshot -update`
+Implement the smallest change that satisfies the task.
 
-### 4. Commit and move to review
+- Bugs: write a failing test first (TDD), then fix.
+- Run the appropriate checks for the change (common defaults):
+  - `go test ./...`
+  - `golangci-lint run ./...`
 
-Once tests and lint pass, commit inside the worktree:
+Commit in the worktree when green:
 
 ```bash
 git add <files>
 git commit -m "feat: <description>"
 ```
 
-Now move the task to **review**. This signals: "code is complete and committed, awaiting merge to main."
+### Progress notes (recommended)
 
-```bash
-kanban-md move <ID> review --claim <your-agent-name>
+While a task is `in-progress`, leave short timestamped notes in the task body from **board home** (especially after major steps or before/after running tests). This makes handoffs and reviews much faster.
+
+Note: `kanban-md edit --body` replaces the entire body. If your `kanban-md` version supports an append flag, prefer that; otherwise edit the underlying task `.md` file directly to append.
+
+Example note style:
+
+```text
+[[YYYY-MM-DD]] Tue 11:23
+Implemented X/Y/Z, now running tests.
 ```
 
-(Use `--claim` with your agent name — `in-progress` and `review` require `--claim` by default.)
+### 4) Merge to main (from board home)
 
-**The task MUST stay in `review` until it is merged into main.** Do not move it to `done` yet.
-
-### 5. Merge into main
-
-Switch back to the main working directory and check if the state is clean:
+Switch back to board home and merge your task branch:
 
 ```bash
-cd /Users/santop/Projects/kanban-md
+cd <board-home>
+git switch main
 git status
 ```
 
-#### If main is clean
+If `git status` shows unexpected changes outside the board directory (usually `kanban/`) or a git operation in progress, do not proceed. Park the task in `review` and move on.
 
-Merge your branch:
-
-```bash
-git merge task/<ID>-<short-description>
-```
-
-Then clean up the worktree:
+Merge and re-run tests on main:
 
 ```bash
-git worktree remove --force ../kanban-md-task-<ID>
-git branch -d task/<ID>-<short-description>
+git merge task/<ID>-<kebab-description>
+go test ./...
+golangci-lint run ./...
 ```
 
-**Only after the merge is on main**, release the claim and move to **done**:
+If you cannot merge right now (e.g., another merge/rebase is in progress), do **not** force. Park the task in `review`, leave a note (branch name + what’s left), and pick the next task.
+
+To park a “ready to merge” task:
+
+From board home:
+
+```bash
+kanban-md move <ID> review --claim <agent>
+# Append a note in the task body: branch name + what’s left to do.
+kanban-md edit <ID> --release
+```
+
+### 5) Mark done (only after merge)
+
+Only after the merge is on main and checks pass:
+
+From board home:
 
 ```bash
 kanban-md edit <ID> --release
 kanban-md move <ID> done
 ```
 
-#### If main is NOT clean
+### 6) Commit board changes (only if board is git-tracked)
 
-Another agent is currently merging. Do NOT force or overwrite. The task stays in **review**. Instead:
-
-1. Go back and **pick another task** (repeat from step 1 in a new worktree).
-2. Complete that task as well.
-3. Wait until main is clean, then merge both branches sequentially:
-   ```bash
-   git merge task/<FIRST-ID>-<desc>
-   git merge task/<SECOND-ID>-<desc>
-   ```
-4. Resolve any conflicts if needed, run tests again to confirm everything passes.
-5. Clean up both worktrees and branches.
-6. **Only after each branch is merged**, release its claim and move to done.
-
-### 6. Status lifecycle
-
-Statuses have strict meanings. Never skip ahead.
-
-| Status | Meaning | Enters when | Leaves when |
-|---|---|---|---|
-| `in-progress` | Agent is actively working | `pick --claim --move in-progress` | Tests + lint pass, code committed |
-| `review` | Code committed, awaiting merge to main | `move <ID> review --claim <name>` | Branch merged into main |
-| `done` | Merged into main | `edit <ID> --release` then `move <ID> done` | Never |
-
-To abandon a task: release the claim and move back to `todo`:
+From board home:
 
 ```bash
+git add kanban/config.yml kanban/tasks/
+git commit -m "chore(board): update task #<ID>"
+```
+
+### 7) Optional cleanup
+
+```bash
+git worktree remove --force ../kanban-md-task-<ID>
+git branch -d task/<ID>-<kebab-description>
+```
+
+## Blocked / Needs User Input (the “review and move on” rule)
+
+If you cannot continue without the user (decision, access, environment, or anything outside your control):
+
+From board home:
+
+```bash
+kanban-md move <ID> review --claim <agent>
+kanban-md edit <ID> --block "Waiting on user: <what you need>" --claim <agent>
 kanban-md edit <ID> --release
-kanban-md move <ID> todo
 ```
 
-### 7. Release
+In your handoff note, include (append; do not replace existing context):
 
-After merging and confirming tests pass on main:
+- The exact question(s) for the user (prefer A/B options)
+- What you already tried and what happened
+- The minimal next step after the user responds
+
+Suggested handoff template:
+
+```md
+## Handoff
+
+- Current state:
+- Branch (if any):
+- Summary:
+- Commands run:
+- Open questions (A/B):
+- Next step:
+```
+
+Then pick the next task. Do not idle.
+
+Note: `kanban-md edit --body` replaces the entire body. To append safely, edit the underlying task `.md` file directly (preferred), or re-submit the full body including the existing text plus your handoff. (If your `kanban-md` version supports an append flag, prefer that.)
+
+## Resuming a parked task
+
+When the user answers and you need to continue, re-claim and move back to `in-progress`:
+
+From board home:
 
 ```bash
-# Tag and push (release workflow triggers automatically)
-git tag vX.Y.Z
-git push origin main --tags
+kanban-md edit <ID> --claim <agent>
+kanban-md edit <ID> --unblock --claim <agent>   # if it was blocked
+kanban-md move <ID> in-progress --claim <agent>
 ```
 
-Then write release notes per the project guidelines (see CLAUDE.md / AGENTS.md).
+## Status meanings (keep the board honest)
 
-## Autonomy
+| Status | Meaning |
+|---|---|
+| `in-progress` | Actively being worked by an agent right now |
+| `review` | Waiting state: ready to merge, or waiting on user/decision/unblock |
+| `done` | Merged to main (and checks pass) |
 
-Unless the user explicitly asks to be consulted, operate autonomously. Pick a task, implement it, merge it, and immediately pick the next one. Continue this loop until no available tasks remain.
+## When there is nothing to pick
 
-**Do not stop to ask the user** for routine decisions — choosing which task to pick, how to implement a straightforward feature, or whether to proceed after a successful merge. Just keep going.
+If `pick` returns "no unblocked, unclaimed tasks found":
 
-**Stop and ask only when:**
-- A task description is genuinely ambiguous and could lead to wasted work
-- A merge conflict requires a judgment call about which changes to keep
-- An external action is needed (e.g. pushing to remote, creating a release, deploying)
-- Tests or lint fail repeatedly and you cannot resolve the issue
-
-## Rules
-
-### Claiming (most important — prevents duplicate work)
-
-- **Always claim before working.** Never start work on a task without claiming it first. Use `pick --claim` to do this atomically.
-- **Always use `--claim <name>` when moving tasks.** The `in-progress` and `review` statuses require `--claim` by default. The CLI enforces this — moves without `--claim` will fail.
-- **Only pick unclaimed tasks.** Use `pick` or `list --unclaimed`. Never manually select a task that is already claimed by someone else.
-- **Never override another agent's claim.** If a task is claimed, it belongs to that agent. Pick a different task.
-- **If `pick` fails, pick again.** Another agent got there first. This is normal in a multi-agent environment. Just run `pick` again for the next available task.
-- **Release claims when done or abandoning.** Always `edit <ID> --release` before moving to `done` or back to `todo`.
-
-### Status discipline
-
-- **`in-progress` means actively working.** Only claimed tasks should be in-progress.
-- **`review` means committed, awaiting merge.** The task stays here until the branch is merged into main. Do not skip to `done`.
-- **`done` means merged into main.** Only move here after `git merge` has landed on main and tests pass.
-
-### Git safety
-
-- **Never merge into a dirty main.** Always check `git status` first.
-- **Always use worktrees** to isolate task work from main and from other parallel tasks.
-- **One merge at a time.** If main is occupied, work on something else and come back.
-- **Test before merging.** Run `go test ./...` and `golangci-lint run ./...` on main after every merge.
+- Check blocked work: `kanban-md list --compact --blocked`
+- Check waiting work: `kanban-md list --compact --status review`
+- If everything is waiting on the user, ask targeted questions and stop (don't thrash the board).
