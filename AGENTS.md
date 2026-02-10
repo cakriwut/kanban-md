@@ -193,40 +193,58 @@ When fixing bugs, use test-driven development: write a failing test that reprodu
 
 ## Using the Kanban Board
 
-This project uses its own kanban board (in `kanban/`) to track work. Use the CLI to manage tasks as you work.
+This project uses its own kanban board (in `kanban/`) to track work. **All work must be tracked on the board.** If a task doesn't exist for what you're about to do, create one first. Use the kanban-based development skill workflow for the full loop.
 
-### Workflow
+### Mandatory workflow (claim → worktree → merge → done)
 
-1. **Before starting work**, check the board:
-   ```
-   go run ./cmd/kanban-md list
-   go run ./cmd/kanban-md list --status backlog
-   ```
+Every task follows this lifecycle. The board is shared — multiple agents may work concurrently. **Claims prevent duplicate work.**
 
-2. **When picking up a task**, move it to in-progress:
-   ```
-   go run ./cmd/kanban-md move <ID> in-progress
-   ```
+```bash
+# 1. Generate a unique agent name at session start
+awk 'length >= 4 && length <= 8 && /^[a-z]+$/' /usr/share/dict/words | sort -R | head -2 | tr '\n' '-' | sed 's/-$//'
 
-3. **When finishing a task**, move it to done:
-   ```
-   go run ./cmd/kanban-md move <ID> done
-   ```
+# 2. Pick and claim atomically (tries todo first, then backlog)
+go run ./cmd/kanban-md pick --claim <agent> --status todo --move in-progress
 
-4. **When starting a new piece of work** that isn't already tracked, create a task:
-   ```
-   go run ./cmd/kanban-md create "Short descriptive title" --priority <low|medium|high|critical> --tags <layer-N>
-   ```
-   Then add a body with relevant context (reference to proposal docs, scope notes, etc.):
-   ```
-   go run ./cmd/kanban-md edit <ID> --body "Description of what needs to be done. See docs/plans/layer-N-xxx.md"
-   ```
+# 3. Read the full task
+go run ./cmd/kanban-md show <ID>
 
-5. **When a task is blocked or no longer needed**, update accordingly:
-   ```
-   go run ./cmd/kanban-md move <ID> backlog
-   go run ./cmd/kanban-md delete <ID>
-   ```
+# 4. Create a worktree, implement, test, commit
+git worktree add ../kanban-md-task-<ID> -b task/<ID>-<kebab-description>
+# ... work in worktree ...
+
+# 5. Merge back to main from board home
+git switch main && git merge task/<ID>-<kebab-description>
+
+# 6. Release claim and mark done (only after merge + green tests)
+go run ./cmd/kanban-md edit <ID> --release
+go run ./cmd/kanban-md move <ID> done
+
+# 7. Clean up
+git worktree remove --force ../kanban-md-task-<ID>
+git branch -d task/<ID>-<kebab-description>
+```
+
+**Key rules:**
+- **Claim before any work.** Never edit code without claiming the task first.
+- **One active task per agent.** Finish or park before picking another.
+- **Never steal claims.** If a task is claimed by someone else, pick a different one.
+- **Park in `review` if blocked.** Leave a handoff note (what's done, what's left, branch name), release the claim, and pick the next task.
+
+### Creating tasks
+
+When starting work that isn't already tracked, create a task first:
+
+```
+go run ./cmd/kanban-md create "Short descriptive title" --priority <low|medium|high|critical> --tags <layer-N>
+go run ./cmd/kanban-md edit <ID> --body "Description of what needs to be done."
+```
+
+When a task is blocked or no longer needed:
+```
+go run ./cmd/kanban-md move <ID> backlog
+go run ./cmd/kanban-md delete <ID>
+```
 
 ### "Add ticket" requests
 
