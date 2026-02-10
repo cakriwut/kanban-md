@@ -7,6 +7,7 @@
 │  j/↓           Move cursor down              │
 │  k/↑           Move cursor up                │
 │  enter         Show task detail              │
+│  c             Create new task in column     │
 │  m             Move task (status picker)     │
 │  N             Move task to next status      │
 │  P             Move task to previous status  │
