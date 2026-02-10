@@ -295,8 +295,8 @@ func TestBoard_DeleteTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading task 1 after delete: %v", err)
 	}
-	if tk.Status != "archived" {
-		t.Errorf("status = %q, want archived", tk.Status)
+	if tk.Status != statusArchived {
+		t.Errorf("status = %q, want %s", tk.Status, statusArchived)
 	}
 
 	_ = b.View()
