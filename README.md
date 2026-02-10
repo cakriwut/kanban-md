@@ -24,6 +24,10 @@ Project management tools are designed for humans clicking buttons. kanban-md is 
 - **Skills included.** Pre-written skills for using the CLI tool and a multi-agent development workflow. Installable via `kanban-md skill install`.
 - **TUI for observation.** A full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
 
+```bash
+kanban-md tui
+```
+
 ![Interactive TUI](assets/tui-screenshot.png)
 
 ## Installation
