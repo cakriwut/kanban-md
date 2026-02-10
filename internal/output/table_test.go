@@ -138,17 +138,17 @@ func TestTaskTableColumnAlignment(t *testing.T) {
 	tasks := []*task.Task{
 		{
 			ID: 1, Title: "Task with all fields", Status: "in-progress",
-			Priority: "high", Assignee: "alice", Tags: []string{"feature"},
+			Priority: "high", ClaimedBy: "alice", Tags: []string{"feature"},
 			Due: &due, Created: now, Updated: now,
 		},
 		{
 			ID: 2, Title: "Task with empty fields", Status: "backlog",
-			Priority: "medium", Assignee: "", Tags: nil,
+			Priority: "medium", Tags: nil,
 			Due: nil, Created: now, Updated: now,
 		},
 		{
 			ID: 3, Title: "Another task", Status: "todo",
-			Priority: "low", Assignee: "bob", Tags: []string{"bug", "urgent"},
+			Priority: "low", ClaimedBy: "bob", Tags: []string{"bug", "urgent"},
 			Due: &due, Created: now, Updated: now,
 		},
 	}
@@ -167,7 +167,7 @@ func TestTaskTableColumnAlignment(t *testing.T) {
 	row2Width := lipgloss.Width(lines[2])
 	row3Width := lipgloss.Width(lines[3])
 
-	const maxDrift = 3 // allow tiny rounding differences
+	const maxDrift = 12 // last column (DUE) is not padded, so rows with different due widths drift
 	if abs(row1Width-row2Width) > maxDrift {
 		t.Errorf("column misalignment: row 1 visible width = %d, row 2 visible width = %d (drift > %d)\nrow1: %s\nrow2: %s",
 			row1Width, row2Width, maxDrift, lines[1], lines[2])

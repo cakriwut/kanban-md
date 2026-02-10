@@ -59,21 +59,21 @@ func TaskTable(w io.Writer, tasks []*task.Task) {
 
 	// Calculate column widths.
 	const pad = 2
-	idW, statusW, prioW, titleW, assignW, tagsW, dueW := 4, 8, 10, 5, 10, 6, 12
+	idW, statusW, prioW, titleW, claimW, tagsW, dueW := 4, 8, 10, 5, 9, 6, 12
 	for _, t := range tasks {
 		idW = max(idW, len(strconv.Itoa(t.ID))+pad)
 		statusW = max(statusW, len(t.Status)+pad)
 		prioW = max(prioW, len(t.Priority)+pad)
 		titleW = max(titleW, min(len(t.Title)+pad, 50)) //nolint:mnd // max title column width
-		assignW = max(assignW, len(t.Assignee)+pad)
+		claimW = max(claimW, len(claimDisplay(t))+pad)
 		tagsW = max(tagsW, min(len(strings.Join(t.Tags, ","))+pad, 30)) //nolint:mnd // max tags column width
 	}
 
 	// Print header.
 	header := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %-*s %-*s",
 		idW, "ID", statusW, "STATUS", prioW, "PRIORITY",
-		titleW, "TITLE", assignW, "ASSIGNEE", tagsW, "TAGS", dueW, "DUE")
-	fmt.Fprintln(w, headerStyle.Render(header))
+		titleW, "TITLE", claimW, "CLAIMED", tagsW, "TAGS", dueW, "DUE")
+	fmt.Fprintln(w, headerStyle.Render(strings.TrimRight(header, " ")))
 
 	// Print rows.
 	for _, t := range tasks {
@@ -82,9 +82,11 @@ func TaskTable(w io.Writer, tasks []*task.Task) {
 		if len(title) > maxTitle {
 			title = title[:maxTitle-3] + "..."
 		}
-		assignee := t.Assignee
-		if assignee == "" {
-			assignee = dimStyle.Render("--")
+		claim := claimDisplay(t)
+		if claim == "" {
+			claim = dimStyle.Render("--")
+		} else {
+			claim = claimStyle.Render(claim)
 		}
 		tags := strings.Join(t.Tags, ",")
 		if tags == "" {
@@ -99,14 +101,15 @@ func TaskTable(w io.Writer, tasks []*task.Task) {
 			due = dimStyle.Render(due)
 		}
 
-		fmt.Fprintf(w, "%-*d %s %s %s %s %s %s\n",
+		row := fmt.Sprintf("%-*d %s %s %s %s %s %s",
 			idW, t.ID,
 			padRight(styledValue(t.Status, statusStyles), statusW),
 			padRight(styledValue(t.Priority, priorityStyles), prioW),
 			padRight(title, titleW),
-			padRight(assignee, assignW),
+			padRight(claim, claimW),
 			padRight(tags, tagsW),
-			padRight(due, dueW))
+			due)
+		fmt.Fprintln(w, strings.TrimRight(row, " "))
 	}
 }
 
@@ -321,6 +324,14 @@ func stringOrDash(s string) string {
 		return dimStyle.Render("--")
 	}
 	return s
+}
+
+// claimDisplay returns "@agent" if the task is claimed, or "" otherwise.
+func claimDisplay(t *task.Task) string {
+	if t.ClaimedBy != "" {
+		return "@" + t.ClaimedBy
+	}
+	return ""
 }
 
 // styledValue renders s using a matching style from the map, or returns s unchanged.

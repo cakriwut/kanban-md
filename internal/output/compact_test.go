@@ -16,7 +16,7 @@ func TestTaskCompactAllFields(t *testing.T) {
 	tasks := []*task.Task{
 		{
 			ID: 3, Title: "Add WIP limits", Status: "backlog", Priority: "high",
-			Assignee: "alice", Tags: []string{"layer-4"}, Due: &due,
+			ClaimedBy: "alice", Tags: []string{"layer-4"}, Due: &due,
 			Created: now, Updated: now,
 		},
 	}
@@ -50,7 +50,7 @@ func TestTaskCompactNoTags(t *testing.T) {
 	tasks := []*task.Task{
 		{
 			ID: 1, Title: "No tags task", Status: "backlog", Priority: "low",
-			Assignee: "bob", Created: now, Updated: now,
+			ClaimedBy: "bob", Created: now, Updated: now,
 		},
 	}
 
@@ -62,7 +62,7 @@ func TestTaskCompactNoTags(t *testing.T) {
 		t.Errorf("TaskCompact with no tags should not contain parentheses: %s", out)
 	}
 	if !strings.Contains(out, "@bob") {
-		t.Errorf("TaskCompact missing assignee: %s", out)
+		t.Errorf("TaskCompact missing claimed_by: %s", out)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestTaskDetailCompact(t *testing.T) {
 	due := date.New(2026, time.March, 1)
 	tk := &task.Task{
 		ID: 5, Title: "Test detail", Status: "in-progress", Priority: "high",
-		Assignee: "alice", Tags: []string{"feature"}, Due: &due,
+		ClaimedBy: "alice", Tags: []string{"feature"}, Due: &due,
 		Estimate: "4h", Created: now.Add(-24 * time.Hour), Updated: now,
 		Started: &started, Body: "Body text here.",
 	}

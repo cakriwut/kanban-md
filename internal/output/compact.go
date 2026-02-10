@@ -120,8 +120,8 @@ func ActivityLogCompact(w io.Writer, entries []board.LogEntry) {
 func formatTaskLine(t *task.Task) string {
 	line := "#" + strconv.Itoa(t.ID) + " [" + t.Status + "/" + t.Priority + "] " + t.Title
 
-	if t.Assignee != "" {
-		line += " @" + t.Assignee
+	if t.ClaimedBy != "" {
+		line += " @" + t.ClaimedBy
 	}
 	if len(t.Tags) > 0 {
 		line += " (" + strings.Join(t.Tags, ", ") + ")"
