@@ -280,6 +280,22 @@ kanban-md move 1,2,3 todo          # batch move
 | `--prev` | Move back to previous status |
 | `--claim` | Claim task for an agent |
 
+### `handoff`
+
+Hand off a task for review. Moves to `review` status, appends a note, and optionally blocks/releases.
+
+```bash
+kanban-md handoff ID --claim NAME [--note TEXT] [--block REASON] [-t] [--release]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--claim` | Claim name (required) |
+| `--note` | Handoff note to append to body |
+| `--timestamp`, `-t` | Prefix a timestamp line to the note |
+| `--block` | Mark task as blocked with reason |
+| `--release` | Release claim after handoff |
+
 ### `delete`
 
 Delete a task. Aliases: `rm`.

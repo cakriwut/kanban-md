@@ -190,9 +190,7 @@ To park a “ready to merge” task:
 From board home:
 
 ```bash
-kanban-md move <ID> review --claim <agent>
-kanban-md edit <ID> --append-body "Ready to merge: task/<ID>-…; remaining: …" --timestamp --claim <agent>
-kanban-md edit <ID> --release
+kanban-md handoff <ID> --claim <agent> --note "Ready to merge: task/<ID>-…; remaining: …" --timestamp --release
 ```
 
 ### 5) Mark done (only after merge)
@@ -229,17 +227,17 @@ If you cannot continue without the user (decision, access, environment, or anyth
 From board home:
 
 ```bash
-kanban-md move <ID> review --claim <agent>
-kanban-md edit <ID> --block "Waiting on user: <what you need>" --claim <agent>
-kanban-md edit <ID> --append-body "## Handoff
+kanban-md handoff <ID> --claim <agent> \
+  --block "Waiting on user: <what you need>" \
+  --note "## Handoff
 - Current state:
 - Branch (if any):
 - Open questions (A/B):
-- Next step:" --timestamp --claim <agent>
-kanban-md edit <ID> --release
+- Next step:" \
+  --timestamp --release
 ```
 
-In your handoff note, include (append; do not replace existing context):
+In your handoff note, include:
 
 - The exact question(s) for the user (prefer A/B options)
 - What you already tried and what happened
