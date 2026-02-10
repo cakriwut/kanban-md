@@ -226,6 +226,7 @@ git branch -d task/<ID>-<kebab-description>
 ```
 
 **Key rules:**
+- **Always use a worktree.** Never commit directly to `main`. All development work must happen in a git worktree on a feature branch, then merge back to `main` after tests pass.
 - **Claim before any work.** Never edit code without claiming the task first.
 - **One active task per agent.** Finish or park before picking another.
 - **Never steal claims.** If a task is claimed by someone else, pick a different one.
