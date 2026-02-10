@@ -31,15 +31,13 @@ Project management tools are designed for humans clicking buttons. kanban-md is 
 ### Homebrew (macOS/Linux)
 
 ```bash
-# CLI + 
-brew install antopolskiy/tap/kanban-md antopolskiy/tap/kanban-md-tui
+brew install antopolskiy/tap/kanban-md
 ```
 
 ### Go
 
 ```bash
 go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest
-go install github.com/antopolskiy/kanban-md/cmd/kanban-md-tui@latest
 ```
 
 Homebrew also installs `kbmd` as a shorthand alias for `kanban-md`.
@@ -436,12 +434,14 @@ When using `--write-to`, the context block is wrapped in HTML comment markers (`
 
 ## Interactive TUI
 
-`kanban-md-tui` provides a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
+`kanban-md tui` opens a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
 
 ```bash
-kanban-md-tui             # launch from any directory with a kanban/ board
-kanban-md-tui --dir PATH  # point to a specific kanban directory
+kanban-md tui             # launch from any directory with a kanban/ board
+kanban-md tui --dir PATH  # point to a specific kanban directory
 ```
+
+> **Note:** The standalone `kanban-md-tui` binary is still included for backward compatibility but simply delegates to `kanban-md tui`.
 
 ### Keyboard shortcuts
 
@@ -627,7 +627,7 @@ kanban-md list --group-by priority      # priority distribution
 
 **No hidden state.** Everything is in `config.yml` and the task files. There's no database, no cache, no lock file. Two agents can work on the same board by editing different files and merging via git.
 
-**Minimal by default.** The core CLI does one thing — manage task files — and stays out of the way. Board rendering and interactive browsing live in the separate `kanban-md-tui` binary. The tool doesn't sync, notify, or integrate with external services. Git handles collaboration; file watchers handle live updates.
+**Minimal by default.** The core CLI does one thing — manage task files — and stays out of the way. The interactive TUI is built in (`kanban-md tui`). The tool doesn't sync, notify, or integrate with external services. Git handles collaboration; file watchers handle live updates.
 
 ## Development
 
