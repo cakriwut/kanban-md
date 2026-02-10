@@ -32,6 +32,7 @@ const (
 	claimTestAgent       = "test-agent"
 	claimAgent1          = "agent-1"
 	codeTaskClaimed      = "TASK_CLAIMED"
+	codeStatusConflict   = "STATUS_CONFLICT"
 )
 
 func TestMain(m *testing.M) {
@@ -704,6 +705,87 @@ func TestEditClearDue(t *testing.T) {
 	}
 }
 
+func TestEditAppendBody(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Append target", "--body", "initial body")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--append-body", "appended note")
+	if r.exitCode != 0 {
+		t.Fatalf("edit failed: %s", r.stderr)
+	}
+	if !strings.Contains(task.Body, "initial body") {
+		t.Errorf("Body should contain original text, got %q", task.Body)
+	}
+	if !strings.Contains(task.Body, "appended note") {
+		t.Errorf("Body should contain appended text, got %q", task.Body)
+	}
+}
+
+func TestEditAppendBody_ToEmptyBody(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Empty body target")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--append-body", "first note")
+	if r.exitCode != 0 {
+		t.Fatalf("edit failed: %s", r.stderr)
+	}
+	if task.Body != "first note" {
+		t.Errorf("Body = %q, want %q", task.Body, "first note")
+	}
+}
+
+func TestEditAppendBody_WithTimestamp(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Timestamp target", "--body", "existing")
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "edit", "1", "-a", "progress update", "-t")
+	if r.exitCode != 0 {
+		t.Fatalf("edit failed: %s", r.stderr)
+	}
+	if !strings.Contains(task.Body, "existing") {
+		t.Errorf("Body should contain original text, got %q", task.Body)
+	}
+	if !strings.Contains(task.Body, "[[") || !strings.Contains(task.Body, "]]") {
+		t.Errorf("Body should contain timestamp markers, got %q", task.Body)
+	}
+	if !strings.Contains(task.Body, "progress update") {
+		t.Errorf("Body should contain appended text, got %q", task.Body)
+	}
+}
+
+func TestEditAppendBody_MultipleAppends(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Multi-append target")
+
+	var task taskJSON
+	runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--append-body", "note 1")
+	runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--append-body", "note 2")
+	runKanbanJSON(t, kanbanDir, &task, "edit", "1", "--append-body", "note 3")
+
+	if !strings.Contains(task.Body, "note 1") {
+		t.Errorf("Body should contain note 1, got %q", task.Body)
+	}
+	if !strings.Contains(task.Body, "note 2") {
+		t.Errorf("Body should contain note 2, got %q", task.Body)
+	}
+	if !strings.Contains(task.Body, "note 3") {
+		t.Errorf("Body should contain note 3, got %q", task.Body)
+	}
+}
+
+func TestEditBodyAndAppendBodyConflict(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Conflict target")
+
+	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--body", "replace", "--append-body", "append")
+	if errResp.Code != codeStatusConflict {
+		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Move tests
 // ---------------------------------------------------------------------------
@@ -1085,7 +1167,7 @@ func TestEditStartedAndClearStartedConflict(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Task A")
 
 	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--started", "2026-01-15", "--clear-started")
-	if errResp.Code != "STATUS_CONFLICT" {
+	if errResp.Code != codeStatusConflict {
 		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
 	}
 	if !strings.Contains(errResp.Error, "cannot use") {
@@ -1726,7 +1808,7 @@ func TestBlockAndUnblockConflict(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Conflict")
 
 	errResp := runKanbanJSONError(t, kanbanDir, "edit", "1", "--block", "reason", "--unblock")
-	if errResp.Code != "STATUS_CONFLICT" {
+	if errResp.Code != codeStatusConflict {
 		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
 	}
 	if !strings.Contains(errResp.Error, "cannot use --block and --unblock together") {

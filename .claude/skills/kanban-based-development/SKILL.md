@@ -157,14 +157,11 @@ git commit -m "feat: <description>"
 
 While a task is `in-progress`, leave short timestamped notes in the task body from **board home** (especially after major steps or before/after running tests). This makes handoffs and reviews much faster.
 
-Note: `kanban-md edit --body` replaces the entire body. If your `kanban-md` version supports an append flag, prefer that; otherwise edit the underlying task `.md` file directly to append.
-
-Example note style:
-
-```text
-[[YYYY-MM-DD]] Tue 11:23
-Implemented X/Y/Z, now running tests.
+```bash
+kanban-md edit <ID> --append-body "Implemented X/Y/Z, now running tests." --timestamp --claim <agent>
 ```
+
+The `--append-body` (`-a`) flag appends text to the existing body without replacing it. The `--timestamp` (`-t`) flag prefixes a timestamp line like `[[2026-02-10]] Mon 15:04`.
 
 ### 4) Merge to main (from board home)
 
@@ -194,7 +191,7 @@ From board home:
 
 ```bash
 kanban-md move <ID> review --claim <agent>
-# Append a note in the task body: branch name + what’s left to do.
+kanban-md edit <ID> --append-body "Ready to merge: task/<ID>-…; remaining: …" --timestamp --claim <agent>
 kanban-md edit <ID> --release
 ```
 
@@ -234,6 +231,11 @@ From board home:
 ```bash
 kanban-md move <ID> review --claim <agent>
 kanban-md edit <ID> --block "Waiting on user: <what you need>" --claim <agent>
+kanban-md edit <ID> --append-body "## Handoff
+- Current state:
+- Branch (if any):
+- Open questions (A/B):
+- Next step:" --timestamp --claim <agent>
 kanban-md edit <ID> --release
 ```
 
@@ -243,22 +245,7 @@ In your handoff note, include (append; do not replace existing context):
 - What you already tried and what happened
 - The minimal next step after the user responds
 
-Suggested handoff template:
-
-```md
-## Handoff
-
-- Current state:
-- Branch (if any):
-- Summary:
-- Commands run:
-- Open questions (A/B):
-- Next step:
-```
-
 Then pick the next task. Do not idle.
-
-Note: `kanban-md edit --body` replaces the entire body. To append safely, edit the underlying task `.md` file directly (preferred), or re-submit the full body including the existing text plus your handoff. (If your `kanban-md` version supports an append flag, prefer that.)
 
 ## Resuming a parked task
 

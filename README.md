@@ -246,7 +246,9 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--due` | New due date (YYYY-MM-DD) |
 | `--clear-due` | Remove due date |
 | `--estimate` | New time estimate |
-| `--body` | New body text |
+| `--body` | New body text (replaces entire body) |
+| `--append-body`, `-a` | Append text to task body |
+| `--timestamp`, `-t` | Prefix a timestamp line when appending |
 | `--started` | Set started date (YYYY-MM-DD) |
 | `--clear-started` | Clear started timestamp |
 | `--completed` | Set completed date (YYYY-MM-DD) |

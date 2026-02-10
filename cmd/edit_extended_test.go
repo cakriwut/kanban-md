@@ -27,6 +27,8 @@ func newEditCmd() *cobra.Command {
 	cmd.Flags().Bool("clear-due", false, "")
 	cmd.Flags().String("estimate", "", "")
 	cmd.Flags().String("body", "", "")
+	cmd.Flags().StringP("append-body", "a", "", "")
+	cmd.Flags().BoolP("timestamp", "t", false, "")
 	cmd.Flags().String("started", "", "")
 	cmd.Flags().Bool("clear-started", false, "")
 	cmd.Flags().String("completed", "", "")
@@ -162,6 +164,98 @@ func TestApplySimpleEditFlags_Body(t *testing.T) {
 	}
 	if tk.Body != "new body text" {
 		t.Errorf("body = %q, want %q", tk.Body, "new body text")
+	}
+}
+
+func TestApplySimpleEditFlags_AppendBody_ToEmpty(t *testing.T) {
+	cmd := newEditCmd()
+	_ = cmd.Flags().Set("append-body", "first note")
+	cfg := config.NewDefault("Test")
+	tk := &task.Task{}
+
+	changed, err := applySimpleEditFlags(cmd, tk, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Error("expected changed=true")
+	}
+	if tk.Body != "first note" {
+		t.Errorf("body = %q, want %q", tk.Body, "first note")
+	}
+}
+
+func TestApplySimpleEditFlags_AppendBody_ToExisting(t *testing.T) {
+	cmd := newEditCmd()
+	_ = cmd.Flags().Set("append-body", "second note")
+	cfg := config.NewDefault("Test")
+	tk := &task.Task{Body: "existing body"}
+
+	changed, err := applySimpleEditFlags(cmd, tk, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Error("expected changed=true")
+	}
+	want := "existing body\n\nsecond note"
+	if tk.Body != want {
+		t.Errorf("body = %q, want %q", tk.Body, want)
+	}
+}
+
+func TestApplySimpleEditFlags_AppendBody_ToExistingWithTrailingNewlines(t *testing.T) {
+	cmd := newEditCmd()
+	_ = cmd.Flags().Set("append-body", "second note")
+	cfg := config.NewDefault("Test")
+	tk := &task.Task{Body: "existing body\n\n"}
+
+	changed, err := applySimpleEditFlags(cmd, tk, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Error("expected changed=true")
+	}
+	want := "existing body\n\nsecond note"
+	if tk.Body != want {
+		t.Errorf("body = %q, want %q", tk.Body, want)
+	}
+}
+
+func TestApplySimpleEditFlags_AppendBody_WithTimestamp(t *testing.T) {
+	cmd := newEditCmd()
+	_ = cmd.Flags().Set("append-body", "progress update")
+	_ = cmd.Flags().Set("timestamp", "true")
+	cfg := config.NewDefault("Test")
+	tk := &task.Task{Body: "existing"}
+
+	changed, err := applySimpleEditFlags(cmd, tk, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Error("expected changed=true")
+	}
+	// Body should contain the timestamp line followed by the note.
+	if !containsSubstring(tk.Body, "existing\n\n[[") {
+		t.Errorf("body should start with existing + timestamp, got %q", tk.Body)
+	}
+	if !containsSubstring(tk.Body, "progress update") {
+		t.Errorf("body should contain appended text, got %q", tk.Body)
+	}
+}
+
+func TestApplySimpleEditFlags_BodyAndAppendConflict(t *testing.T) {
+	cmd := newEditCmd()
+	_ = cmd.Flags().Set("body", "replace")
+	_ = cmd.Flags().Set("append-body", "append")
+	cfg := config.NewDefault("Test")
+	tk := &task.Task{}
+
+	_, err := applySimpleEditFlags(cmd, tk, cfg)
+	if err == nil {
+		t.Fatal("expected error for --body + --append-body conflict")
 	}
 }
 
@@ -777,6 +871,52 @@ func TestLogEditActivity_ReleaseTransition(t *testing.T) {
 	got := string(data)
 	if !containsSubstring(got, "release") {
 		t.Errorf("expected 'release' action in log, got: %s", got)
+	}
+}
+
+// --- appendBody unit tests ---
+
+func TestAppendBody_EmptyExisting(t *testing.T) {
+	got := appendBody("", "hello", false)
+	if got != "hello" {
+		t.Errorf("appendBody(\"\", \"hello\", false) = %q, want %q", got, "hello")
+	}
+}
+
+func TestAppendBody_NonEmptyExisting(t *testing.T) {
+	got := appendBody("first", "second", false)
+	want := "first\n\nsecond"
+	if got != want {
+		t.Errorf("appendBody(\"first\", \"second\", false) = %q, want %q", got, want)
+	}
+}
+
+func TestAppendBody_TrimsTrailingNewlines(t *testing.T) {
+	got := appendBody("first\n\n\n", "second", false)
+	want := "first\n\nsecond"
+	if got != want {
+		t.Errorf("appendBody = %q, want %q", got, want)
+	}
+}
+
+func TestAppendBody_WithTimestamp(t *testing.T) {
+	got := appendBody("", "note", true)
+	// Should start with [[YYYY-MM-DD]] Day HH:MM format.
+	if !containsSubstring(got, "[[") || !containsSubstring(got, "]]") {
+		t.Errorf("expected timestamp markers in %q", got)
+	}
+	if !containsSubstring(got, "note") {
+		t.Errorf("expected appended text in %q", got)
+	}
+}
+
+func TestAppendBody_WithTimestampAndExisting(t *testing.T) {
+	got := appendBody("existing", "note", true)
+	if !containsSubstring(got, "existing\n\n[[") {
+		t.Errorf("expected existing + separator + timestamp, got %q", got)
+	}
+	if !containsSubstring(got, "\nnote") {
+		t.Errorf("expected note after timestamp line, got %q", got)
 	}
 }
 

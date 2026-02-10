@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -34,7 +35,9 @@ func init() {
 	editCmd.Flags().String("due", "", "new due date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-due", false, "clear due date")
 	editCmd.Flags().String("estimate", "", "new time estimate")
-	editCmd.Flags().String("body", "", "new body text")
+	editCmd.Flags().String("body", "", "new body text (replaces entire body)")
+	editCmd.Flags().StringP("append-body", "a", "", "append text to task body")
+	editCmd.Flags().BoolP("timestamp", "t", false, "prefix a timestamp line when appending")
 	editCmd.Flags().String("started", "", "set started date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-started", false, "clear started timestamp")
 	editCmd.Flags().String("completed", "", "set completed date (YYYY-MM-DD)")
@@ -302,8 +305,20 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 		t.Estimate = v
 		changed = true
 	}
-	if v, _ := cmd.Flags().GetString("body"); v != "" {
+	bodySet := cmd.Flags().Changed("body")
+	appendSet := cmd.Flags().Changed("append-body")
+	if bodySet && appendSet {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --body and --append-body together")
+	}
+	if bodySet {
+		v, _ := cmd.Flags().GetString("body")
 		t.Body = v
+		changed = true
+	}
+	if appendSet {
+		v, _ := cmd.Flags().GetString("append-body")
+		ts, _ := cmd.Flags().GetBool("timestamp")
+		t.Body = appendBody(t.Body, v, ts)
 		changed = true
 	}
 	if v, _ := cmd.Flags().GetString("class"); v != "" {
@@ -500,4 +515,24 @@ func removeAll(slice []string, items ...string) []string {
 		}
 	}
 	return result
+}
+
+// appendBody appends text to the existing body, optionally prefixed with a timestamp line.
+func appendBody(existing, text string, addTimestamp bool) string {
+	var b strings.Builder
+
+	if existing != "" {
+		b.WriteString(strings.TrimRight(existing, "\n"))
+		b.WriteString("\n\n")
+	}
+
+	if addTimestamp {
+		now := time.Now()
+		b.WriteString(now.Format("[[2006-01-02]] Mon 15:04"))
+		b.WriteByte('\n')
+	}
+
+	b.WriteString(text)
+
+	return b.String()
 }
