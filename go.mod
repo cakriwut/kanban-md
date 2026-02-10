@@ -11,6 +11,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	go.yaml.in/yaml/v3 v3.0.4
+	golang.org/x/sys v0.40.0
 	golang.org/x/term v0.39.0
 )
 
@@ -33,6 +34,5 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.3.8 // indirect
 )

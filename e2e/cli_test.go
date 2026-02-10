@@ -5418,3 +5418,54 @@ func TestRequireClaimReleaseBypassesChecks(t *testing.T) {
 		t.Errorf("code = %q, want %q", errResp.Code, codeClaimRequired)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Concurrent create — duplicate ID prevention
+// ---------------------------------------------------------------------------
+
+func TestConcurrentCreateUniqueIDs(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	const n = 10
+	type createResult struct {
+		task taskJSON
+		err  error
+	}
+	results := make(chan createResult, n)
+
+	// Launch n concurrent create processes.
+	for i := range n {
+		go func(idx int) {
+			title := fmt.Sprintf("Concurrent task %d", idx)
+			args := []string{"--dir", kanbanDir, "--json", "create", title}
+			cmd := exec.Command(binPath, args...) //nolint:gosec,noctx // e2e test
+			out, err := cmd.Output()
+			if err != nil {
+				results <- createResult{err: fmt.Errorf("create %d failed: %w", idx, err)}
+				return
+			}
+			var tk taskJSON
+			if err := json.Unmarshal(out, &tk); err != nil {
+				results <- createResult{err: fmt.Errorf("parse %d: %w", idx, err)}
+				return
+			}
+			results <- createResult{task: tk}
+		}(i)
+	}
+
+	ids := make(map[int]bool, n)
+	for range n {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if ids[r.task.ID] {
+			t.Errorf("duplicate ID %d", r.task.ID)
+		}
+		ids[r.task.ID] = true
+	}
+
+	if len(ids) != n {
+		t.Errorf("expected %d unique IDs, got %d", n, len(ids))
+	}
+}

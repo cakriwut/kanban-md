@@ -98,18 +98,23 @@ func Execute() {
 	os.Exit(1)
 }
 
-// loadConfig finds and loads the kanban config.
-func loadConfig() (*config.Config, error) {
+// resolveDir returns the absolute path to the kanban directory.
+func resolveDir() (string, error) {
 	if flagDir != "" {
-		return config.Load(flagDir)
+		return flagDir, nil
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("getting working directory: %w", err)
+		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 
-	dir, err := config.FindDir(cwd)
+	return config.FindDir(cwd)
+}
+
+// loadConfig finds and loads the kanban config.
+func loadConfig() (*config.Config, error) {
+	dir, err := resolveDir()
 	if err != nil {
 		return nil, err
 	}

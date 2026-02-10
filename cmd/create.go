@@ -12,6 +12,7 @@ import (
 
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/date"
+	"github.com/antopolskiy/kanban-md/internal/filelock"
 	"github.com/antopolskiy/kanban-md/internal/output"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
@@ -46,7 +47,19 @@ func init() {
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
-	cfg, err := loadConfig()
+	// Acquire an exclusive lock to prevent concurrent creates from
+	// reading the same next_id and generating duplicate task IDs.
+	dir, err := resolveDir()
+	if err != nil {
+		return err
+	}
+	unlock, err := filelock.Lock(filepath.Join(dir, ".lock"))
+	if err != nil {
+		return fmt.Errorf("acquiring lock: %w", err)
+	}
+	defer unlock() //nolint:errcheck // best-effort unlock on exit
+
+	cfg, err := config.Load(dir)
 	if err != nil {
 		return err
 	}
