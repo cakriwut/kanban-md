@@ -55,3 +55,30 @@ agg assets/demo.cast assets/demo.gif \
 ```bash
 vhs assets/demo.tape
 ```
+
+### Animated TUI demo GIF
+
+Shows the TUI with live file watcher — agents claim and move tasks in the background while the TUI auto-refreshes. Uses asciinema + agg (same as the CLI demo).
+
+**One-command** (builds binary, records, converts):
+
+```bash
+bash assets/tui-demo-gen.sh
+```
+
+**Manual steps:**
+
+```bash
+go build -o /tmp/kanban-md ./cmd/kanban-md
+
+asciinema rec assets/tui-demo.cast --cols 120 --rows 30 \
+  --command "bash assets/tui-demo-record.sh" --overwrite
+
+agg assets/tui-demo.cast assets/tui-demo.gif \
+  --font-size 16 --theme dracula --idle-time-limit 3 --last-frame-duration 3
+```
+
+The recording uses three scripts:
+- `tui-demo-gen.sh` — orchestrator (build → record → convert)
+- `tui-demo-record.sh` — sets up a demo board, starts background commands, launches TUI
+- `tui-demo-background.sh` — runs `kanban-md` commands at timed intervals (hidden behind TUI)

@@ -13,6 +13,49 @@ An agents-first file-based Kanban. Built for multi-agent workflows to allow AI a
 
 ![Demo](assets/demo.gif)
 
+## How to use it
+
+`kanban-md` is a flexible tool, and you can use it in many ways. Here is one of the ways I use it in my own projects:
+
+1. Install the tool
+```bash
+brew install antopolskiy/tap/kanban-md
+```
+
+2. Go to your project directory and create a board there
+
+```bash
+kanban-md init
+```
+
+This will create a `kanban/` directory and a `config.yml` file. I also usually add it to .gitignore.
+
+
+3. Install skills for your agents
+```bash
+# install skills locally in this project -- I prefer this
+kanban-md skill install 
+
+# install skills globally (home directory)
+kanban-md skill install --global
+```
+
+4. Create tickets manually, or ask your agents do it for you
+```bash
+kanban-md add "Set up CI pipeline" --priority high
+kanban-md add "Fix login bug" --priority critical
+
+claude "add ticket: there is a bug on the login page when the user enters an invalid email address"
+```
+
+5. Kick off `/kanban-based-development` skill in a single agent and observe how it behaves. It should claim a task, create a worktree, implement, test, commit, release the claim and mark the task as done. When confident, kick off the skill in multiple agents -- they will work in parallel without clashing. You should see the progress in the TUI.
+
+```bash
+kanban-md tui
+```
+
+6. Adjust the local skill / AGENTS.md to steer the agents in a way that would make sense for this project.
+
 ## Why kanban-md?
 
 Project management tools are designed for humans clicking buttons. kanban-md is designed for AI agents running commands and human supervision.
@@ -28,7 +71,7 @@ Project management tools are designed for humans clicking buttons. kanban-md is 
 kanban-md tui
 ```
 
-![Interactive TUI](assets/tui-screenshot.png)
+![Interactive TUI](assets/tui-demo.gif)
 
 ## Installation
 
