@@ -4,6 +4,7 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1007,7 +1008,7 @@ func wrapTitle2(title string, firstWidth, restWidth, maxLines int) []string {
 	if maxLines < 1 {
 		maxLines = 1
 	}
-	if len(title) <= firstWidth || maxLines == 1 {
+	if lipgloss.Width(title) <= firstWidth || maxLines == 1 {
 		return []string{truncate(title, firstWidth)}
 	}
 
@@ -1025,7 +1026,7 @@ func wrapTitle2(title string, firstWidth, restWidth, maxLines int) []string {
 			current.WriteString(word)
 			continue
 		}
-		if current.Len()+1+len(word) <= lineWidth {
+		if lipgloss.Width(current.String())+1+lipgloss.Width(word) <= lineWidth {
 			current.WriteByte(' ')
 			current.WriteString(word)
 		} else {
@@ -1058,7 +1059,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 	if maxLines < 1 {
 		maxLines = 1
 	}
-	if len(title) <= maxWidth || maxLines == 1 {
+	if lipgloss.Width(title) <= maxWidth || maxLines == 1 {
 		return []string{truncate(title, maxWidth)}
 	}
 
@@ -1071,7 +1072,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 			current.WriteString(word)
 			continue
 		}
-		if current.Len()+1+len(word) <= maxWidth {
+		if lipgloss.Width(current.String())+1+lipgloss.Width(word) <= maxWidth {
 			current.WriteByte(' ')
 			current.WriteString(word)
 		} else {
@@ -1172,9 +1173,22 @@ func detailLines(t *task.Task, width int) []string {
 	return lines
 }
 
+// intraWordHyphen matches a hyphen between two word characters (inside compound
+// words like "chunk-index-eval"), but not markdown syntax like "- list item".
+var intraWordHyphen = regexp.MustCompile(`(\w)-(\w)`) //nolint:gochecknoglobals // compiled regex
+
+// nonBreakingHyphen (U+2011) looks identical to a regular hyphen but is not
+// treated as a line-break opportunity by word-wrap algorithms.
+const nonBreakingHyphen = "\u2011"
+
 // renderMarkdown renders body text as terminal-friendly markdown using glamour.
 // Single newlines are preserved as hard line breaks via WithPreservedNewLines.
+// Intra-word hyphens are temporarily replaced with non-breaking hyphens to
+// prevent glamour's word wrapper from creating short orphan line fragments.
 func renderMarkdown(body string, width int) string {
+	// Pre-process: protect intra-word hyphens from line breaking.
+	body = intraWordHyphen.ReplaceAllString(body, "${1}"+nonBreakingHyphen+"${2}")
+
 	r, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(width),
@@ -1187,6 +1201,10 @@ func renderMarkdown(body string, width int) string {
 	if err != nil {
 		return lipgloss.NewStyle().Width(width).Render(body)
 	}
+
+	// Post-process: restore regular hyphens.
+	out = strings.ReplaceAll(out, nonBreakingHyphen, "-")
+
 	return strings.TrimRight(out, "\n")
 }
 
@@ -1343,10 +1361,20 @@ func truncate(s string, maxLen int) string {
 	if maxLen < 4 { //nolint:mnd // minimum length for truncation
 		maxLen = 4
 	}
-	if len(s) <= maxLen {
+	if lipgloss.Width(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen-3] + "..."
+	// Slice by runes to avoid breaking multi-byte UTF-8 characters.
+	runes := []rune(s)
+	target := maxLen - 3 //nolint:mnd // room for "..."
+	if target > len(runes) {
+		target = len(runes)
+	}
+	// Trim runes from the end until the display width fits.
+	for target > 0 && lipgloss.Width(string(runes[:target])) > maxLen-3 {
+		target--
+	}
+	return string(runes[:target]) + "..."
 }
 
 // humanDuration formats a duration as a compact human-readable string.

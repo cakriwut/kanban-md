@@ -1116,6 +1116,89 @@ func TestBoard_DetailRendersMarkdown(t *testing.T) {
 	}
 }
 
+func TestBoard_DetailHyphenWrapNoOrphans(t *testing.T) {
+	// Bug #173: Glamour word wrapper breaks at hyphens, creating short orphan
+	// lines (e.g. "index-" alone on a line). Pre-processing with non-breaking
+	// hyphens prevents this.
+	b, cfg := setupTestBoard(t)
+	// Width 90 produces a 6-char orphan "index-" without the fix.
+	const testWidth = 90
+	b.Update(tea.WindowSizeMsg{Width: testWidth, Height: 40})
+
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	tk.Body = "Added workflow: 20260212_ddq_source_documents_annotation-doc-metadata-first300-chunk-index-eval with config-driven evaluation phase."
+	if err := task.Write(path, tk); err != nil {
+		t.Fatalf("writing task: %v", err)
+	}
+
+	b = sendKey(b, "r")
+	b = sendKey(b, "enter")
+	v := b.View()
+
+	// Check that no line is an orphan fragment (very short non-empty,
+	// non-hint line in the middle of the output).
+	viewLines := strings.Split(v, "\n")
+	const minFragLen = 10 // orphan threshold
+	for i, line := range viewLines {
+		// Strip ANSI first, then trim, to correctly measure visible content.
+		stripped := strings.TrimSpace(stripANSI(line))
+		// Skip empty lines, the last line (hint bar), and lines with
+		// structural content (labels, separators).
+		if stripped == "" || i >= len(viewLines)-1 {
+			continue
+		}
+		if strings.HasPrefix(stripped, "─") || strings.Contains(stripped, ":") {
+			continue
+		}
+		if len(stripped) > 0 && len(stripped) < minFragLen {
+			t.Errorf("line %d is a short orphan fragment (%d chars): %q", i, len(stripped), stripped)
+		}
+	}
+}
+
+func TestBoard_TruncateUnicodeArrow(t *testing.T) {
+	// Bug #173 (additional): truncate() uses byte length instead of display
+	// width, so multi-byte characters like → (3 bytes, 1 display cell) cause
+	// over-truncation and potential UTF-8 corruption.
+	b, cfg := setupTestBoard(t)
+	const testWidth = 80
+	b.Update(tea.WindowSizeMsg{Width: testWidth, Height: 40})
+
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	tk.Body = "Pipeline: retriever→formatter→prompt chain creation."
+	if err := task.Write(path, tk); err != nil {
+		t.Fatalf("writing task: %v", err)
+	}
+
+	b = sendKey(b, "r")
+	b = sendKey(b, "enter")
+	v := b.View()
+
+	// The arrows should be preserved intact — not corrupted by byte slicing.
+	if !containsStr(v, "retriever→formatter→prompt") {
+		// Check if the text is there but arrows got corrupted.
+		if containsStr(v, "retriever") && !containsStr(v, "→") {
+			t.Error("Unicode arrows (→) were corrupted — likely byte-sliced mid-character")
+		} else if !containsStr(v, "retriever") {
+			t.Error("expected body content in detail view")
+		}
+	}
+}
+
 func TestBoard_MoveDialogCursorUp(t *testing.T) {
 	b, cfg := setupTestBoard(t)
 
