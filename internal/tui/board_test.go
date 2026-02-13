@@ -989,6 +989,40 @@ func TestBoard_DetailScrollToBottom(t *testing.T) {
 	}
 }
 
+func TestBoard_DetailScrollClampsPastEnd(t *testing.T) {
+	// Bug #171: Pressing j past the end of content kept incrementing the
+	// stored scroll offset without clamping. Pressing k then required
+	// undoing all the overshoot before the view started scrolling back.
+	b, cfg := setupTestBoard(t)
+	const bodyLines = 50
+	addLongBodyToTask(t, cfg, 1, bodyLines)
+	b = sendKey(b, "r")
+	b = sendKey(b, "enter")
+
+	// Jump to bottom and capture the view.
+	b = sendKey(b, "G")
+	bottomView := b.View()
+
+	// Press j many more times past the end.
+	const overshoot = 30
+	for range overshoot {
+		b = sendKey(b, "j")
+	}
+
+	// View should still show the same bottom content (no further scrolling).
+	overshootView := b.View()
+	if overshootView != bottomView {
+		t.Error("pressing j past the end changed the view — scroll offset is not clamped")
+	}
+
+	// Press k once — should immediately scroll up by one line.
+	b = sendKey(b, "k")
+	afterUp := b.View()
+	if afterUp == bottomView {
+		t.Error("pressing k after overshoot did not scroll up — stored offset was not clamped")
+	}
+}
+
 func TestBoard_DetailExitBackspace(t *testing.T) {
 	b, _ := setupTestBoard(t)
 

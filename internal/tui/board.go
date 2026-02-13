@@ -1128,7 +1128,8 @@ func (b *Board) viewDetail() string {
 		hint += "  j/k:scroll  g/G:top/bottom"
 	}
 
-	// Apply viewport scrolling.
+	// Apply viewport scrolling and clamp stored offset so subsequent key
+	// presses start from the correct position (prevents overshoot past end).
 	off := b.detailScrollOff
 	maxOff := len(lines) - viewHeight
 	if maxOff < 0 {
@@ -1136,6 +1137,7 @@ func (b *Board) viewDetail() string {
 	}
 	if off > maxOff {
 		off = maxOff
+		b.detailScrollOff = off
 	}
 
 	end := off + viewHeight
