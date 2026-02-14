@@ -257,10 +257,10 @@ func (c *Config) validateClaimTimeout() error {
 }
 
 func (c *Config) validateTUI() error {
-	const maxTitleLines = 3
-	if c.TUI.TitleLines < DefaultTitleLines || c.TUI.TitleLines > maxTitleLines {
+	const minTitleLines, maxTitleLines = 1, 3
+	if c.TUI.TitleLines < minTitleLines || c.TUI.TitleLines > maxTitleLines {
 		return fmt.Errorf("%w: tui.title_lines must be between %d and %d",
-			ErrInvalid, DefaultTitleLines, maxTitleLines)
+			ErrInvalid, minTitleLines, maxTitleLines)
 	}
 	for i, at := range c.TUI.AgeThresholds {
 		if _, err := time.ParseDuration(at.After); err != nil {

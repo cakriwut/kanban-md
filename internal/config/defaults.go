@@ -15,13 +15,13 @@ const (
 	// DefaultClaimTimeout is the default claim expiration as a duration string.
 	DefaultClaimTimeout = "1h"
 	// DefaultTitleLines is the default number of title lines in TUI cards.
-	DefaultTitleLines = 1
+	DefaultTitleLines = 2
 
 	// ConfigFileName is the name of the config file within the kanban directory.
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 8
+	CurrentVersion = 9
 
 	// ArchivedStatus is the reserved status name for soft-deleted tasks.
 	ArchivedStatus = "archived"

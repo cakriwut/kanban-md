@@ -1,29 +1,29 @@
  backlog (8)                 todo (3)                    in-progress (3)             review (2)                  done (3)                   
 ╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮
-│ #16 Email notificatio... ││ #6 Write integration ... ││ #9 Fix auth token ref... ││ #10 Implement user auth  ││ #13 Create project sc... │
-│ high backend             ││ high testing 3d          ││ critical security 5h     ││ critical backend 1d      ││ high setup               │
-╰──────────────────────────╯╰──────────────────────────╯│ @coral-dusk              ││ @sage-river              │╰──────────────────────────╯
-╭──────────────────────────╮╭──────────────────────────╮╰──────────────────────────╯╰──────────────────────────╯╭──────────────────────────╮
-│ #18 Audit logging        ││ #5 Set up monitoring     │╭──────────────────────────╮╭──────────────────────────╮│ #12 Set up CI pipeline   │
-│ medium security          ││ medium devops 3d         ││ #7 Build dashboard UI    ││ #11 Design REST API s... ││ high devops              │
+│ #16 Email notification   ││ #6 Write integration     ││ #9 Fix auth token        ││ #10 Implement user auth  ││ #13 Create project       │
+│ service                  ││ tests                    ││ refresh                  ││ critical backend 1d      ││ scaffold                 │
+│ high backend             ││ high testing 3d          ││ critical security 5h     ││ @sage-river              ││ high setup               │
+╰──────────────────────────╯╰──────────────────────────╯│ @coral-dusk              │╰──────────────────────────╯╰──────────────────────────╯
+╭──────────────────────────╮╭──────────────────────────╮╰──────────────────────────╯╭──────────────────────────╮╭──────────────────────────╮
+│ #18 Audit logging        ││ #5 Set up monitoring     │╭──────────────────────────╮│ #11 Design REST API      ││ #12 Set up CI pipeline   │
+│ medium security          ││ medium devops 3d         ││ #7 Build dashboard UI    ││ schema                   ││ high devops              │
 ╰──────────────────────────╯╰──────────────────────────╯│ high frontend 5h         ││ high api 1d              │╰──────────────────────────╯
 ╭──────────────────────────╮╭──────────────────────────╮│ @frost-maple             ││ @neon-drift              │╭──────────────────────────╮
-│ #15 Add search autoco... ││ #4 Add rate limiting     │╰──────────────────────────╯╰──────────────────────────╯│ #14 Define database s... │
-│ medium frontend          ││ medium backend 3d        │╭──────────────────────────╮                            │ medium backend           │
-╰──────────────────────────╯╰──────────────────────────╯│ #8 Write API docs        │                            ╰──────────────────────────╯
-╭──────────────────────────╮                            │ medium docs 5h           │                                                        
-│ #2 Mobile responsive ... │                            │ @amber-swift             │                                                        
-│ medium frontend          │                            ╰──────────────────────────╯                                                        
+│ #15 Add search           ││ #4 Add rate limiting     │╰──────────────────────────╯╰──────────────────────────╯│ #14 Define database      │
+│ autocomplete             ││ medium backend 3d        │╭──────────────────────────╮                            │ schema                   │
+│ medium frontend          │╰──────────────────────────╯│ #8 Write API docs        │                            │ medium backend           │
+╰──────────────────────────╯                            │ medium docs 5h           │                            ╰──────────────────────────╯
+╭──────────────────────────╮                            │ @amber-swift             │                                                        
+│ #2 Mobile responsive     │                            ╰──────────────────────────╯                                                        
+│ layout                   │                                                                                                                
+│ medium frontend          │                                                                                                                
 ╰──────────────────────────╯                                                                                                                
 ╭──────────────────────────╮                                                                                                                
 │ #19 Export to CSV        │                                                                                                                
 │ low feature              │                                                                                                                
 ╰──────────────────────────╯                                                                                                                
-╭──────────────────────────╮                                                                                                                
-│ #17 Localization support │                                                                                                                
-│ low i18n                 │                                                                                                                
-╰──────────────────────────╯                                                                                                                
-  ↓ 2 more                                                                                                                                  
+  ↓ 3 more                                                                                                                                  
+                                                                                                                                            
                                                                                                                                             
                                                                                                                                             
                                                                                                                                             

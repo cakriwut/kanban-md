@@ -44,6 +44,7 @@ var migrations = map[int]func(*Config) error{
 	5: migrateV5ToV6,
 	6: migrateV6ToV7,
 	7: migrateV7ToV8,
+	8: migrateV8ToV9,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -122,5 +123,14 @@ func migrateV7ToV8(cfg *Config) error { //nolint:unparam // signature must match
 		cfg.Statuses[lastIdx].ShowDuration = hide
 	}
 	cfg.Version = 8
+	return nil
+}
+
+// migrateV8ToV9 changes the default title_lines from 1 to 2.
+func migrateV8ToV9(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	if cfg.TUI.TitleLines == 1 {
+		cfg.TUI.TitleLines = DefaultTitleLines
+	}
+	cfg.Version = 9
 	return nil
 }
