@@ -217,7 +217,7 @@ func TestBoard_MoveNext(t *testing.T) {
 	b, cfg := setupTestBoard(t)
 
 	// Press N to move to next status.
-	b = sendKey(b, "N")
+	b = sendKey(b, "n")
 
 	// Task 1 was in backlog, should now be in todo.
 	path, err := task.FindByID(cfg.TasksPath(), 1)
@@ -243,7 +243,7 @@ func TestBoard_MovePrev(t *testing.T) {
 	b = sendKey(b, "l") // → in-progress
 
 	// Press P to move to previous status.
-	b = sendKey(b, "P")
+	b = sendKey(b, "p")
 
 	// Task 3 was in in-progress, should now be in todo.
 	path, err := task.FindByID(cfg.TasksPath(), 3)
@@ -265,7 +265,7 @@ func TestBoard_MovePrevAtFirst(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
 	// Task 1 is in backlog (first status). P should show an error.
-	b = sendKey(b, "P")
+	b = sendKey(b, "p")
 	v := b.View()
 
 	if !containsStr(v, "already at the first status") {
@@ -1330,7 +1330,7 @@ func TestBoard_MoveNextAtLast(t *testing.T) {
 		b = sendKey(b, "l")
 	}
 	// Press N on a task in "done" (last status).
-	b = sendKey(b, "N")
+	b = sendKey(b, "n")
 	v := b.View()
 
 	if !containsStr(v, "already at the last status") {
@@ -1344,7 +1344,7 @@ func TestBoard_MoveNextEmptyColumn(t *testing.T) {
 	// Navigate to todo column (index 1, empty in setupTestBoard).
 	b = sendKey(b, "l")
 	// Press N — should not panic.
-	b = sendKey(b, "N")
+	b = sendKey(b, "n")
 	v := b.View()
 
 	// Just verify it renders without panic.
@@ -1359,7 +1359,7 @@ func TestBoard_MovePrevEmptyColumn(t *testing.T) {
 	// Navigate to todo column (index 1, empty).
 	b = sendKey(b, "l")
 	// Press P — should not panic.
-	b = sendKey(b, "P")
+	b = sendKey(b, "p")
 	v := b.View()
 
 	if v == "" {
@@ -2029,7 +2029,7 @@ func TestBoard_ErrorDoesNotHideColumnHeaders(t *testing.T) {
 	for range doneCol {
 		b = sendKey(b, "l")
 	}
-	b = sendKey(b, "N") // moveNext on "done" → error: already at last status
+	b = sendKey(b, "n") // moveNext on "done" → error: already at last status
 
 	v := b.View()
 

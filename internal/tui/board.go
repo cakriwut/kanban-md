@@ -178,9 +178,9 @@ func (b *Board) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.handleEnter()
 	case "m":
 		b.handleMoveStart()
-	case "N":
+	case "n":
 		return b.moveNext()
-	case "P":
+	case "p":
 		return b.movePrev()
 	case "+", "=":
 		return b.raisePriority()
@@ -1121,7 +1121,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 
 func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
-	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav c:create m:move N/P:status +/-:priority d:del ?:help q:quit",
+	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav c:create m:move n/p:status +/-:priority d:del ?:help q:quit",
 		b.cfg.Board.Name, total)
 	status = truncate(status, b.width)
 
@@ -1355,8 +1355,8 @@ func (b *Board) viewHelp() string {
 		{"enter", "Show task detail"},
 		{"c", "Create new task in column"},
 		{"m", "Move task (status picker)"},
-		{"N", "Move task to next status"},
-		{"P", "Move task to previous status"},
+		{"n", "Move task to next status"},
+		{"p", "Move task to previous status"},
 		{"+/=", "Raise task priority"},
 		{"-/_", "Lower task priority"},
 		{"d", "Delete task"},

@@ -125,8 +125,8 @@ func TestBoundary_CurrentColumn_NoColumns(t *testing.T) {
 	_ = b.View()
 
 	// Move operations should not panic (selectedTask returns nil via currentColumn nil).
-	b = sendKey(b, "N")
-	b = sendKey(b, "P")
+	b = sendKey(b, "n")
+	b = sendKey(b, "p")
 	b = sendKey(b, "+")
 	b = sendKey(b, "-")
 
@@ -149,7 +149,7 @@ func TestBoundary_MovePrev_AtFirstStatus(t *testing.T) {
 	b := setupSingleTaskBoard(t, "First status task", "medium")
 
 	// Task is at "backlog" (first board status). movePrev should show error.
-	b = sendKey(b, "P")
+	b = sendKey(b, "p")
 	v := b.View()
 	if !containsStr(v, "already at the first status") {
 		t.Errorf("expected 'already at the first status' error, got:\n%s", v)
@@ -646,7 +646,7 @@ func TestBoundary_DeleteCancel_UppercaseN(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
 	b = sendKey(b, "d")
-	b = sendKey(b, "N")
+	b = sendKey(b, "n")
 	v := b.View()
 	if !containsStr(v, "Task A") {
 		t.Error("expected board view after canceling delete with N")
@@ -699,8 +699,8 @@ func TestBoundary_ExecuteMove_NilTask(t *testing.T) {
 	b = sendKey(b, "l") // todo (empty)
 
 	// Directly press N/P -- selectedTask is nil, should be no-op.
-	b = sendKey(b, "N")
-	b = sendKey(b, "P")
+	b = sendKey(b, "n")
+	b = sendKey(b, "p")
 	v := b.View()
 	if v == "" {
 		t.Error("expected non-empty view")

@@ -9,8 +9,8 @@
 │  enter         Show task detail              │
 │  c             Create new task in column     │
 │  m             Move task (status picker)     │
-│  N             Move task to next status      │
-│  P             Move task to previous status  │
+│  n             Move task to next status      │
+│  p             Move task to previous status  │
 │  +/=           Raise task priority           │
 │  -/_           Lower task priority           │
 │  d             Delete task                   │
