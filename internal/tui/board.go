@@ -1141,8 +1141,8 @@ func (b *Board) viewDetail() string {
 
 	lines := detailLines(t, b.width)
 
-	// Reserve the last line for the fixed status hint.
-	viewHeight := b.height - 1
+	// Reserve space for the blank separator line and the fixed status hint.
+	viewHeight := b.height - 2 //nolint:mnd // 2 = blank line + hint line
 	if viewHeight < 1 {
 		viewHeight = len(lines)
 	}
@@ -1170,7 +1170,7 @@ func (b *Board) viewDetail() string {
 		end = len(lines)
 	}
 
-	return strings.Join(lines[off:end], "\n") + "\n" + dimStyle.Render(hint)
+	return strings.Join(lines[off:end], "\n") + "\n\n" + dimStyle.Render(hint)
 }
 
 func detailLines(t *task.Task, width int) []string {

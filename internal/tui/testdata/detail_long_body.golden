@@ -36,5 +36,5 @@ Updated:        2026-01-15 10:00
   Body line 27 content here                                                                                           
   Body line 28 content here                                                                                           
   Body line 29 content here                                                                                           
-  Body line 30 content here                                                                                           
-q/esc:back
+
+q/esc:back  j/k:scroll  g/G:top/bottom
