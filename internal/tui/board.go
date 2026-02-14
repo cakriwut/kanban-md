@@ -33,15 +33,24 @@ const (
 
 // Key and layout constants.
 const (
-	keyEsc  = "esc"
-	keyDown = "down"
-	keyUp   = "up"
+	keyEsc      = "esc"
+	keyDown     = "down"
+	keyUp       = "up"
+	keyEnter    = "enter"
+	keyShiftTab = "shift+tab"
 
 	tagMaxFraction = 2 // tags get at most 1/N of card width
 	boardChrome    = 2 // blank line + status bar below the column area
 	errorChrome    = 1 // extra line when error toast is displayed
 	maxScrollOff   = 1<<31 - 1
 	tickInterval   = 30 * time.Second // how often durations refresh
+
+	// Create wizard steps.
+	stepTitle    = 0
+	stepBody     = 1
+	stepPriority = 2
+	stepTags     = 3
+	stepCount    = 4
 )
 
 // Board is the top-level bubbletea model.
@@ -69,9 +78,14 @@ type Board struct {
 	deleteID    int
 	deleteTitle string
 
-	// Create view.
-	createInput  string
-	createStatus string // column where task will be created
+	// Create wizard.
+	createStatus   string // column where task will be created
+	createStep     int    // current wizard step (0=title, 1=body, 2=priority, 3=tags)
+	createTitle    string
+	createBody     []string // lines of body text
+	createBodyRow  int      // cursor row in body textarea
+	createPriority int      // index into cfg.Priorities
+	createTags     string
 }
 
 // column groups tasks belonging to a single status.
@@ -174,7 +188,7 @@ func (b *Board) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.view = viewHelp
 	case "h", "left", "l", "right", "j", keyDown, "k", keyUp:
 		b.handleNavigation(msg.String())
-	case "enter":
+	case keyEnter:
 		b.handleEnter()
 	case "m":
 		b.handleMoveStart()
@@ -254,36 +268,179 @@ func (b *Board) handleCreateStart() {
 	if col == nil {
 		return
 	}
-	b.createInput = ""
 	b.createStatus = col.status
+	b.createStep = stepTitle
+	b.createTitle = ""
+	b.createBody = []string{""}
+	b.createBodyRow = 0
+	b.createPriority = b.defaultPriorityIndex()
+	b.createTags = ""
 	b.view = viewCreate
 }
 
+func (b *Board) defaultPriorityIndex() int {
+	for i, p := range b.cfg.Priorities {
+		if p == b.cfg.Defaults.Priority {
+			return i
+		}
+	}
+	return 0
+}
+
 func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEscape:
+	// Esc always cancels the entire wizard.
+	if msg.Type == tea.KeyEscape {
 		b.view = viewBoard
-		b.createInput = ""
+		return b, nil
+	}
+
+	// Alt+Enter finishes immediately from any step (skipping remaining steps).
+	if msg.Type == tea.KeyEnter && msg.Alt {
+		return b.executeCreate()
+	}
+
+	switch b.createStep {
+	case stepTitle:
+		return b.handleCreateTitle(msg)
+	case stepBody:
+		return b.handleCreateBody(msg)
+	case stepPriority:
+		return b.handleCreatePriority(msg)
+	case stepTags:
+		return b.handleCreateTags(msg)
+	}
+	return b, nil
+}
+
+func (b *Board) handleCreateTitle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		if strings.TrimSpace(b.createTitle) == "" {
+			b.view = viewBoard
+			return b, nil
+		}
+		b.createStep = stepBody
+	case tea.KeyBackspace:
+		if len(b.createTitle) > 0 {
+			b.createTitle = b.createTitle[:len(b.createTitle)-1]
+		}
+	case tea.KeyRunes:
+		b.createTitle += string(msg.Runes)
+	case tea.KeySpace:
+		b.createTitle += " "
+	}
+	return b, nil
+}
+
+func (b *Board) handleCreateBody(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		// Enter in body adds a new line.
+		newLines := make([]string, 0, len(b.createBody)+1)
+		newLines = append(newLines, b.createBody[:b.createBodyRow+1]...)
+		newLines = append(newLines, "")
+		newLines = append(newLines, b.createBody[b.createBodyRow+1:]...)
+		b.createBody = newLines
+		b.createBodyRow++
+	case tea.KeyBackspace:
+		line := b.createBody[b.createBodyRow]
+		if len(line) > 0 {
+			b.createBody[b.createBodyRow] = line[:len(line)-1]
+		} else if b.createBodyRow > 0 {
+			// Merge with previous line.
+			b.createBody = append(b.createBody[:b.createBodyRow], b.createBody[b.createBodyRow+1:]...)
+			b.createBodyRow--
+		}
+	case tea.KeyRunes:
+		b.createBody[b.createBodyRow] += string(msg.Runes)
+	case tea.KeySpace:
+		b.createBody[b.createBodyRow] += " "
+	default:
+		b.handleCreateBodyNav(msg)
+	}
+	return b, nil
+}
+
+func (b *Board) handleCreateBodyNav(msg tea.KeyMsg) {
+	switch msg.String() {
+	case keyUp:
+		if b.createBodyRow > 0 {
+			b.createBodyRow--
+		}
+	case keyDown:
+		if b.createBodyRow < len(b.createBody)-1 {
+			b.createBodyRow++
+		}
+	case "tab":
+		b.createStep = stepPriority
+	case keyShiftTab:
+		b.createStep = stepTitle
+	}
+}
+
+func (b *Board) handleCreatePriority(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "j", keyDown:
+		if b.createPriority < len(b.cfg.Priorities)-1 {
+			b.createPriority++
+		}
+	case "k", keyUp:
+		if b.createPriority > 0 {
+			b.createPriority--
+		}
+	case keyEnter:
+		b.createStep = stepTags
+	case "tab":
+		b.createStep = stepTags
+	case keyShiftTab:
+		b.createStep = stepBody
+	}
+	return b, nil
+}
+
+func (b *Board) handleCreateTags(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
 	case tea.KeyEnter:
 		return b.executeCreate()
 	case tea.KeyBackspace:
-		if len(b.createInput) > 0 {
-			b.createInput = b.createInput[:len(b.createInput)-1]
+		if len(b.createTags) > 0 {
+			b.createTags = b.createTags[:len(b.createTags)-1]
 		}
 	case tea.KeyRunes:
-		b.createInput += string(msg.Runes)
+		b.createTags += string(msg.Runes)
 	case tea.KeySpace:
-		b.createInput += " "
+		b.createTags += " "
+	default:
+		if msg.String() == keyShiftTab {
+			b.createStep = stepPriority
+		}
 	}
 	return b, nil
 }
 
 func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
-	title := strings.TrimSpace(b.createInput)
+	title := strings.TrimSpace(b.createTitle)
 	if title == "" {
 		b.view = viewBoard
-		b.createInput = ""
 		return b, nil
+	}
+
+	// Build body from lines.
+	body := strings.TrimSpace(strings.Join(b.createBody, "\n"))
+
+	// Resolve priority.
+	priority := b.cfg.Defaults.Priority
+	if b.createPriority >= 0 && b.createPriority < len(b.cfg.Priorities) {
+		priority = b.cfg.Priorities[b.createPriority]
+	}
+
+	// Parse tags.
+	var tags []string
+	for _, tag := range strings.Split(b.createTags, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag != "" {
+			tags = append(tags, tag)
+		}
 	}
 
 	now := b.now()
@@ -292,8 +449,10 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 		ID:       id,
 		Title:    title,
 		Status:   b.createStatus,
-		Priority: b.cfg.Defaults.Priority,
+		Priority: priority,
 		Class:    b.cfg.Defaults.Class,
+		Tags:     tags,
+		Body:     body,
 		Created:  now,
 		Updated:  now,
 	}
@@ -305,7 +464,6 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 	if err := task.Write(path, t); err != nil {
 		b.err = fmt.Errorf("creating task: %w", err)
 		b.view = viewBoard
-		b.createInput = ""
 		return b, nil
 	}
 
@@ -317,7 +475,6 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 	}
 
 	b.view = viewBoard
-	b.createInput = ""
 	b.loadTasks()
 	return b, nil
 }
@@ -355,7 +512,7 @@ func (b *Board) handleMoveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if b.moveCursor > 0 {
 			b.moveCursor--
 		}
-	case "enter":
+	case keyEnter:
 		return b.executeMove(b.moveStatuses[b.moveCursor])
 	}
 	return b, nil
@@ -1337,13 +1494,99 @@ func (b *Board) viewDeleteConfirm() string {
 }
 
 func (b *Board) viewCreateDialog() string {
-	title := lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("Create task in %s:", b.createStatus))
-	input := b.createInput + "▏"
-	hint := dimStyle.Render("enter:create  esc:cancel")
+	header := lipgloss.NewStyle().Bold(true).Render(
+		"Create task in " + b.createStatus)
+	stepLabel := dimStyle.Render(fmt.Sprintf("  Step %d/%d: %s",
+		b.createStep+1, stepCount, b.stepName()))
 
-	content := title + "\n\n" + input + "\n\n" + hint
+	var body string
+	switch b.createStep {
+	case stepTitle:
+		body = b.viewCreateTitle()
+	case stepBody:
+		body = b.viewCreateBody()
+	case stepPriority:
+		body = b.viewCreatePriority()
+	case stepTags:
+		body = b.viewCreateTagsStep()
+	}
+
+	hint := b.createHint()
+
+	content := header + stepLabel + "\n\n" + body + "\n\n" + dimStyle.Render(hint)
 	return dialogStyle.Render(content)
+}
+
+func (b *Board) stepName() string {
+	switch b.createStep {
+	case stepTitle:
+		return "Title"
+	case stepBody:
+		return "Body"
+	case stepPriority:
+		return "Priority"
+	case stepTags:
+		return "Tags"
+	default:
+		return ""
+	}
+}
+
+func (b *Board) createHint() string {
+	switch b.createStep {
+	case stepTitle:
+		return "enter:next  alt+enter:create  esc:cancel"
+	case stepBody:
+		return "tab:next  shift+tab:back  alt+enter:create  esc:cancel"
+	case stepPriority:
+		return "j/k:select  enter/tab:next  shift+tab:back  alt+enter:create  esc:cancel"
+	case stepTags:
+		return "enter:create  shift+tab:back  esc:cancel"
+	default:
+		return "esc:cancel"
+	}
+}
+
+func (b *Board) viewCreateTitle() string {
+	label := lipgloss.NewStyle().Bold(true).Render("Title: ")
+	return label + b.createTitle + "▏"
+}
+
+func (b *Board) viewCreateBody() string {
+	label := lipgloss.NewStyle().Bold(true).Render("Body:")
+	var lines []string
+	for i, line := range b.createBody {
+		prefix := "  "
+		if i == b.createBodyRow {
+			line += "▏"
+			prefix = "> "
+		}
+		lines = append(lines, prefix+line)
+	}
+	return label + "\n" + strings.Join(lines, "\n")
+}
+
+func (b *Board) viewCreatePriority() string {
+	label := lipgloss.NewStyle().Bold(true).Render("Priority:")
+	var items []string
+	for i, p := range b.cfg.Priorities {
+		cursor := "  "
+		if i == b.createPriority {
+			cursor = "> "
+		}
+		pStyle, ok := priorityStyles[p]
+		if !ok {
+			pStyle = dimStyle
+		}
+		items = append(items, cursor+pStyle.Render(p))
+	}
+	return label + "\n" + strings.Join(items, "\n")
+}
+
+func (b *Board) viewCreateTagsStep() string {
+	label := lipgloss.NewStyle().Bold(true).Render("Tags: ")
+	hint := dimStyle.Render("(comma-separated)")
+	return label + b.createTags + "▏" + "  " + hint
 }
 
 func (b *Board) viewHelp() string {
