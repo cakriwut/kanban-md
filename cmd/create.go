@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/antopolskiy/kanban-md/internal/clierr"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/date"
 	"github.com/antopolskiy/kanban-md/internal/filelock"
@@ -18,22 +20,29 @@ import (
 )
 
 var createCmd = &cobra.Command{
-	Use:     "create TITLE",
+	Use:     "create [TITLE]",
 	Aliases: []string{"add"},
 	Short:   "Create a new task",
-	Long:    `Creates a new task file with the given title and optional fields.`,
-	Args:    cobra.ExactArgs(1),
-	RunE:    runCreate,
+	Long: `Creates a new task file with the given title and optional fields.
+
+Title can be provided as a positional argument or via --title flag.
+Body/description can be provided via --body or --description flag.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runCreate,
 }
 
 func init() {
+	createCmd.Flags().String("title", "", "task title (alternative to positional argument)")
 	createCmd.Flags().String("status", "", "task status (default from config)")
 	createCmd.Flags().String("priority", "", "task priority (default from config)")
 	createCmd.Flags().String("assignee", "", "task assignee")
 	createCmd.Flags().StringSlice("tags", nil, "comma-separated tags")
 	createCmd.Flags().SetNormalizeFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
-		if name == "tag" {
+		switch name {
+		case "tag":
 			name = "tags"
+		case "description":
+			name = "body"
 		}
 		return pflag.NormalizedName(name)
 	})
@@ -41,7 +50,7 @@ func init() {
 	createCmd.Flags().String("estimate", "", "time estimate (e.g. 4h, 2d)")
 	createCmd.Flags().Int("parent", 0, "parent task ID")
 	createCmd.Flags().IntSlice("depends-on", nil, "dependency task IDs (comma-separated)")
-	createCmd.Flags().String("body", "", "task body (markdown)")
+	createCmd.Flags().String("body", "", "task body/description (markdown)")
 	createCmd.Flags().String("class", "", "class of service (expedite, fixed-date, standard, intangible)")
 	rootCmd.AddCommand(createCmd)
 }
@@ -64,7 +73,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	title := args[0]
+	title, err := resolveCreateTitle(cmd, args)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
 
 	t := &task.Task{
@@ -115,7 +127,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	logActivity(cfg, "create", t.ID, t.Title)
 
-	// Output.
+	return outputCreateResult(t, path)
+}
+
+func outputCreateResult(t *task.Task, path string) error {
 	if outputFormat() == output.FormatJSON {
 		return output.JSON(os.Stdout, t)
 	}
@@ -130,6 +145,25 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		output.Messagef(os.Stdout, "  Tags: %s", strings.Join(t.Tags, ", "))
 	}
 	return nil
+}
+
+// resolveCreateTitle returns the task title from either the positional arg or --title flag.
+func resolveCreateTitle(cmd *cobra.Command, args []string) (string, error) {
+	flagTitle, _ := cmd.Flags().GetString("title")
+	hasPositional := len(args) > 0
+	hasFlag := flagTitle != ""
+
+	switch {
+	case hasPositional && hasFlag:
+		return "", clierr.New(clierr.InvalidInput,
+			"title provided both as argument and --title flag; use one or the other")
+	case hasPositional:
+		return args[0], nil
+	case hasFlag:
+		return flagTitle, nil
+	default:
+		return "", errors.New("title is required: provide it as an argument or with --title")
+	}
 }
 
 func applyCreateFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) error {

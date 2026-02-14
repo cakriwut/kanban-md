@@ -216,14 +216,16 @@ kanban-md init [--name NAME] [--statuses s1,s2,s3] [--wip-limit status:N]
 
 ### `create`
 
-Create a new task. Aliases: `add`.
+Create a new task. Aliases: `add`. Title can be provided as a positional argument or via `--title`.
 
 ```bash
-kanban-md create TITLE [FLAGS]
+kanban-md create "My task" [FLAGS]
+kanban-md create --title "My task" --description "Details here" [FLAGS]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--title` | | Task title (alternative to positional argument) |
 | `--status` | backlog | Initial status |
 | `--priority` | medium | Priority level |
 | `--assignee` | | Person assigned |
@@ -233,7 +235,7 @@ kanban-md create TITLE [FLAGS]
 | `--class` | standard | Class of service (expedite, fixed-date, standard, intangible) |
 | `--parent` | | Parent task ID |
 | `--depends-on` | | Dependency task IDs (comma-separated) |
-| `--body` | | Task description |
+| `--body` | | Task description (alias: `--description`) |
 
 ### `list`
 

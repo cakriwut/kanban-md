@@ -116,6 +116,78 @@ func TestCreateBadDateFormat(t *testing.T) {
 	}
 }
 
+func TestCreateWithTitleFlag(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "create", "--title", "Flag title task")
+
+	if r.exitCode != 0 {
+		t.Fatalf("create --title failed: %s", r.stderr)
+	}
+	if task.Title != "Flag title task" {
+		t.Errorf("Title = %q, want %q", task.Title, "Flag title task")
+	}
+}
+
+func TestCreateWithDescriptionAlias(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var task taskJSON
+	r := runKanbanJSON(t, kanbanDir, &task, "create", "Desc test", "--description", "Some details")
+
+	if r.exitCode != 0 {
+		t.Fatalf("create --description failed: %s", r.stderr)
+	}
+	if task.Body != "Some details" {
+		t.Errorf("Body = %q, want %q", task.Body, "Some details")
+	}
+}
+
+func TestCreateTitleFlagAndPositionalError(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	errResp := runKanbanJSONError(t, kanbanDir, "create", "Positional title", "--title", "Flag title")
+	if errResp.Code != codeInvalidInput {
+		t.Errorf("code = %q, want %q", errResp.Code, codeInvalidInput)
+	}
+	if !strings.Contains(errResp.Error, "both") {
+		t.Errorf("error = %q, should mention 'both'", errResp.Error)
+	}
+}
+
+func TestCreateNoTitleError(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	r := runKanban(t, kanbanDir, "create", "--json")
+	if r.exitCode == 0 {
+		t.Fatal("expected error when no title provided")
+	}
+}
+
+func TestCreateTitleFlagWithAllFlags(t *testing.T) {
+	kanbanDir := initBoard(t)
+
+	var task taskJSON
+	runKanbanJSON(t, kanbanDir, &task, "create",
+		"--title", "Full flag task",
+		"--status", statusTodo,
+		"--priority", "high",
+		"--description", "Detailed body",
+		"--tags", "backend,api",
+	)
+
+	if task.Title != "Full flag task" {
+		t.Errorf("Title = %q, want %q", task.Title, "Full flag task")
+	}
+	if task.Status != statusTodo {
+		t.Errorf("Status = %q, want %q", task.Status, statusTodo)
+	}
+	if task.Body != "Detailed body" {
+		t.Errorf("Body = %q, want %q", task.Body, "Detailed body")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // List tests
 // ---------------------------------------------------------------------------

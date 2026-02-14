@@ -14,6 +14,7 @@ import (
 // newCreateCmd creates a fresh cobra command with create flags for testing.
 func newCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("title", "", "")
 	cmd.Flags().String("status", "", "")
 	cmd.Flags().String("priority", "", "")
 	cmd.Flags().String("assignee", "", "")
@@ -315,5 +316,45 @@ func TestRunCreate_JSONOutput(t *testing.T) {
 	}
 	if !containsSubstring(got, `"title": "JSON test"`) {
 		t.Errorf("expected JSON output with title, got: %s", got)
+	}
+}
+
+func TestResolveCreateTitle_Positional(t *testing.T) {
+	cmd := newCreateCmd()
+	title, err := resolveCreateTitle(cmd, []string{"My task"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "My task" {
+		t.Errorf("title = %q, want %q", title, "My task")
+	}
+}
+
+func TestResolveCreateTitle_Flag(t *testing.T) {
+	cmd := newCreateCmd()
+	_ = cmd.Flags().Set("title", "Flag task")
+	title, err := resolveCreateTitle(cmd, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "Flag task" {
+		t.Errorf("title = %q, want %q", title, "Flag task")
+	}
+}
+
+func TestResolveCreateTitle_BothError(t *testing.T) {
+	cmd := newCreateCmd()
+	_ = cmd.Flags().Set("title", "Flag task")
+	_, err := resolveCreateTitle(cmd, []string{"Positional task"})
+	if err == nil {
+		t.Fatal("expected error when both positional and --title provided")
+	}
+}
+
+func TestResolveCreateTitle_NeitherError(t *testing.T) {
+	cmd := newCreateCmd()
+	_, err := resolveCreateTitle(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error when no title provided")
 	}
 }
