@@ -1121,7 +1121,7 @@ func wrapTitle(title string, maxWidth, maxLines int) []string {
 
 func (b *Board) renderStatusBar() string {
 	total := len(b.tasks)
-	status := fmt.Sprintf(" %s | %d tasks | hjkl:nav c:create m:move n/p:status +/-:priority d:del ?:help q:quit",
+	status := fmt.Sprintf(" %s | %d tasks | ←↓↑→:nav c:create m:move n/p:status +/-:priority d:del ?:help q:quit",
 		b.cfg.Board.Name, total)
 	status = truncate(status, b.width)
 
@@ -1348,10 +1348,10 @@ func (b *Board) viewCreateDialog() string {
 
 func (b *Board) viewHelp() string {
 	help := []struct{ key, desc string }{
-		{"h/←", "Move to left column"},
-		{"l/→", "Move to right column"},
-		{"j/↓", "Move cursor down"},
-		{"k/↑", "Move cursor up"},
+		{"←/h", "Move to left column"},
+		{"→/l", "Move to right column"},
+		{"↓/j", "Move cursor down"},
+		{"↑/k", "Move cursor up"},
 		{"enter", "Show task detail"},
 		{"c", "Create new task in column"},
 		{"m", "Move task (status picker)"},

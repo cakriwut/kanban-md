@@ -2,10 +2,10 @@
 │                                              │
 │  Keyboard Shortcuts                          │
 │                                              │
-│  h/←           Move to left column           │
-│  l/→           Move to right column          │
-│  j/↓           Move cursor down              │
-│  k/↑           Move cursor up                │
+│  ←/h           Move to left column           │
+│  →/l           Move to right column          │
+│  ↓/j           Move cursor down              │
+│  ↑/k           Move cursor up                │
 │  enter         Show task detail              │
 │  c             Create new task in column     │
 │  m             Move task (status picker)     │
