@@ -109,6 +109,7 @@ func (b *Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return b, nil
 	case ReloadMsg:
 		b.loadTasks()
+		b.refreshDetailTask()
 		return b, nil
 	case TickMsg:
 		return b, tickCmd()
@@ -413,6 +414,25 @@ func (b *Board) loadTasks() {
 	}
 
 	b.clampRow()
+}
+
+// refreshDetailTask updates the detail view task pointer after a reload.
+// If the task was deleted or moved to an archived status, it closes the detail view.
+func (b *Board) refreshDetailTask() {
+	if b.view != viewDetail || b.detailTask == nil {
+		return
+	}
+	id := b.detailTask.ID
+	for _, t := range b.tasks {
+		if t.ID == id {
+			b.detailTask = t
+			return
+		}
+	}
+	// Task no longer visible (deleted or archived) — close detail view.
+	b.view = viewBoard
+	b.detailTask = nil
+	b.detailScrollOff = 0
 }
 
 func (b *Board) currentColumn() *column {

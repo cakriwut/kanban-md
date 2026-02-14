@@ -798,6 +798,80 @@ func TestBoard_ReloadMsg(t *testing.T) {
 	}
 }
 
+func TestBoard_ReloadMsg_RefreshesDetailView(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Open detail view for Task A (ID=1).
+	b = sendKey(b, "enter")
+	v := b.View()
+	if !containsStr(v, "Task A") {
+		t.Fatal("expected detail view showing Task A")
+	}
+
+	// Modify task on disk (simulating external CLI edit).
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	tk.Title = "Task A Updated"
+	if err := task.Write(path, tk); err != nil {
+		t.Fatalf("writing task: %v", err)
+	}
+
+	// Before reload, detail still shows old title.
+	v = b.View()
+	if containsStr(v, "Task A Updated") {
+		t.Error("expected old title before ReloadMsg")
+	}
+
+	// Send ReloadMsg — detail view should refresh.
+	m, _ := b.Update(tui.ReloadMsg{})
+	b = m.(*tui.Board)
+
+	v = b.View()
+	if !containsStr(v, "Task A Updated") {
+		t.Error("expected updated title after ReloadMsg in detail view")
+	}
+}
+
+func TestBoard_ReloadMsg_ClosesDetailOnDelete(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Open detail view for Task A (ID=1).
+	b = sendKey(b, "enter")
+	v := b.View()
+	if !containsStr(v, "Task A") {
+		t.Fatal("expected detail view showing Task A")
+	}
+
+	// Delete the task file on disk.
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("removing task file: %v", err)
+	}
+
+	// Send ReloadMsg — should close detail view and return to board.
+	m, _ := b.Update(tui.ReloadMsg{})
+	b = m.(*tui.Board)
+
+	v = b.View()
+	// Should be back on board view (showing column headers, not detail).
+	if containsStr(v, "Task A") {
+		t.Error("expected Task A not visible after deletion")
+	}
+	// Board should still show other tasks.
+	if !containsStr(v, "Task C") {
+		t.Error("expected other tasks still visible on board")
+	}
+}
+
 func TestBoard_UnknownMsg(t *testing.T) {
 	b, _ := setupTestBoard(t)
 	vBefore := b.View()
