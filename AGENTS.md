@@ -22,6 +22,8 @@ To release a new version, tag and push. The release workflow triggers automatica
 
 **IMPORTANT: Never create releases locally with `gh release create`.** Always let goreleaser handle release creation through the CI pipeline. After tagging and pushing, wait for the workflow to complete, then use `gh release edit` to update the release notes.
 
+**Version numbering:** Decide the version number autonomously based on semver (patch for fixes, minor for features, major for breaking changes). Do not ask the user to confirm the version.
+
 ```
 git tag vX.Y.Z
 git push origin main --tags
@@ -100,7 +102,7 @@ Any steps users need to take, or "No action needed" with explanation of auto-mig
 ```
 
 **Guidelines:**
-- Title format: `vX.Y.Z "Codename" — Short Theme` (e.g. `v0.8.0 "Iron Gate" — Claim Enforcement`). The codename is a 1-2 word evocative nickname that creates a memorable association with the release — something vivid and fun that works as a mnemonic (e.g. "Quiet Storm", "Paper Trail", "Red Line"). It should loosely relate to the theme but doesn't need to be literal.
+- Title format: `vX.Y.Z "Codename" — Short Theme` (e.g. `v0.8.0 "Iron Gate" — Claim Enforcement`). The codename is a 1-2 word evocative nickname that creates a memorable association with the release — something vivid and fun that works as a mnemonic (e.g. "Quiet Storm", "Paper Trail", "Red Line"). It should loosely relate to the theme but doesn't need to be literal. **Codenames must be unique across all releases** — check `gh release list` before picking one to avoid duplicates.
 - Start with a short TL;DR paragraph (no heading) summarizing the release for someone skimming
 - Use `## New:` for new commands/features, `## Changed:` for behavior changes, `## Fixed:` for bug fixes
 - Every feature section should include a code example
