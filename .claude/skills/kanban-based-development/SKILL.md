@@ -14,7 +14,7 @@ allowed-tools:
   - Bash(golangci-lint *)
   - Bash(awk *)
 ---
-<!-- kanban-md-skill-version: 0.28.1 -->
+<!-- kanban-md-skill-version: 0.31.0 -->
 
 # Kanban-Based Development
 
@@ -67,8 +67,8 @@ By default, agents should take tasks all the way to `done` (worktree → commit 
 
 Defer to the user (leave the task in `review` with a handoff) only when you need:
 
-- a product/spec decision with multiple valid options
-- credentials/access or external actions (push to remote, releases, deployments)
+- an important product/spec decision with multiple valid options and no clear winner
+- credentials/access or external actions (push to remote, releases, deployments, ENV variables, etc.)
 - a merge conflict that requires judgment (not just mechanical resolution)
 - repeated test/lint failures you can’t resolve
 
