@@ -596,6 +596,48 @@ func TestBoard_DetailWrapsLongLines(t *testing.T) {
 	}
 }
 
+// --- Bug #183: Long task titles don't wrap in detail view ---
+
+func TestBoard_DetailTitleWraps(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Give task #1 a title that exceeds the 120-char terminal width.
+	longTitle := "This is a very long task title that absolutely should not be clipped or truncated when displayed in the detail view pane"
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatalf("finding task: %v", err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatalf("reading task: %v", err)
+	}
+	tk.Title = longTitle
+	if err := task.Write(path, tk); err != nil {
+		t.Fatalf("writing task: %v", err)
+	}
+
+	// Navigate to detail view of task #1.
+	b = sendKey(b, "r")
+	b = sendKey(b, "enter")
+	v := b.View()
+
+	// 1. Every line must fit within the terminal width.
+	// Use rune count (not byte length) so multi-byte chars like ─ are measured correctly.
+	for i, line := range strings.Split(v, "\n") {
+		visual := stripANSI(line)
+		if runeLen := len([]rune(visual)); runeLen > 120 {
+			t.Errorf("line %d exceeds width 120: runes=%d %q", i, runeLen, visual)
+		}
+	}
+
+	// 2. The full title must appear across the wrapped lines.
+	// Pick a word from the end of the title that would be clipped if not wrapped.
+	const tailWord = "pane"
+	if !containsStr(v, tailWord) {
+		t.Errorf("detail view should show %q (end of long title), but it was clipped; got:\n%s", tailWord, stripANSI(v))
+	}
+}
+
 // --- Bug #58: Column headers disappear when scrolling ---
 
 func TestBoard_ScrollHeaderVisible(t *testing.T) {

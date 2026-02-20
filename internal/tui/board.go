@@ -44,7 +44,9 @@ const (
 	boardChrome    = 2 // blank line + status bar below the column area
 	errorChrome    = 1 // extra line when error toast is displayed
 	maxScrollOff   = 1<<31 - 1
-	tickInterval   = 30 * time.Second // how often durations refresh
+	// noLineLimit is a sentinel passed to wrapTitle to allow unlimited lines.
+	noLineLimit  = 1<<31 - 1
+	tickInterval = 30 * time.Second // how often durations refresh
 
 	// Create wizard steps.
 	stepTitle    = 0
@@ -1314,10 +1316,18 @@ func (b *Board) viewDetail() string {
 
 func detailLines(t *task.Task, width int) []string {
 	var lines []string
-	titleLine := lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("Task #%d: %s", t.ID, t.Title))
-	lines = append(lines, titleLine)
-	lines = append(lines, strings.Repeat("─", lipgloss.Width(titleLine)))
+	header := fmt.Sprintf("Task #%d: %s", t.ID, t.Title)
+	// Word-wrap the header so long titles fit within the available terminal width.
+	boldStyle := lipgloss.NewStyle().Bold(true)
+	for _, l := range wrapTitle(header, width, noLineLimit) {
+		lines = append(lines, boldStyle.Render(l))
+	}
+	// Separator: as wide as the header, capped at terminal width.
+	sepWidth := lipgloss.Width(header)
+	if sepWidth > width {
+		sepWidth = width
+	}
+	lines = append(lines, strings.Repeat("─", sepWidth))
 	lines = append(lines, "")
 	lines = append(lines, detailLabelStyle.Render("Status:")+"  "+t.Status)
 	lines = append(lines, detailLabelStyle.Render("Priority:")+"  "+t.Priority)
