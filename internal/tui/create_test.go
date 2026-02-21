@@ -537,6 +537,33 @@ func TestCreate_ConsistentHints(t *testing.T) {
 	}
 }
 
+func TestCreate_TitleCursorMovementInsertsAtCursor(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	b = sendKey(b, "c")
+	b = typeText(b, "Task")
+	b = sendSpecialKey(b, tea.KeyLeft)
+	b = sendSpecialKey(b, tea.KeyLeft)
+	b = typeText(b, "X")
+	_ = sendSpecialKey(b, tea.KeyEnter)
+
+	entries, err := os.ReadDir(cfg.TasksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, e := range entries {
+		if containsStr(e.Name(), "taxsk") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected title insertion at cursor (slug taxsk), but cursor movement was not applied")
+	}
+}
+
 func countTaskFiles(t *testing.T, dir string) int {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
