@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -101,7 +102,12 @@ func Execute() {
 // resolveDir returns the absolute path to the kanban directory.
 func resolveDir() (string, error) {
 	if flagDir != "" {
-		return flagDir, nil
+		// Normalize the path to absolute form to ensure consistent lock file paths.
+		abs, err := filepath.Abs(flagDir)
+		if err != nil {
+			return "", fmt.Errorf("resolving absolute path for %q: %w", flagDir, err)
+		}
+		return abs, nil
 	}
 
 	cwd, err := os.Getwd()

@@ -74,12 +74,20 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Defense-in-depth: scan existing task files to find the actual max ID.
+	// If NextID is stale (crash, manual edit, concurrent TUI create), bump it.
+	maxID, err := task.MaxIDFromFiles(cfg.TasksPath())
+	if err != nil {
+		return fmt.Errorf("scanning task files: %w", err)
+	}
+	if maxID >= cfg.NextID {
+		cfg.NextID = maxID + 1
+	}
 	title, err := resolveCreateTitle(cmd, args)
 	if err != nil {
 		return err
 	}
 	now := time.Now()
-
 	t := &task.Task{
 		ID:       cfg.NextID,
 		Title:    title,
