@@ -309,6 +309,10 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--claim` | Claim task for an agent (set claimed_by) |
 | `--release` | Release claim on task |
 | `--class` | Set class of service |
+| `--branch` | Set git branch name |
+| `--clear-branch` | Clear branch field |
+| `--worktree` | Set worktree path |
+| `--clear-worktree` | Clear worktree field |
 
 ### `move`
 

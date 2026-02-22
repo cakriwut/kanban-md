@@ -30,6 +30,12 @@ func TaskDetailCompact(w io.Writer, t *task.Task) {
 	if t.Estimate != "" {
 		line += " est:" + t.Estimate
 	}
+	if t.Branch != "" {
+		line += " branch:" + t.Branch
+	}
+	if t.Worktree != "" {
+		line += " worktree:" + t.Worktree
+	}
 	fmt.Fprintln(w, line)
 
 	// Timestamps line.
@@ -122,6 +128,9 @@ func formatTaskLine(t *task.Task) string {
 
 	if t.ClaimedBy != "" {
 		line += " @" + t.ClaimedBy
+	}
+	if t.Branch != "" {
+		line += " branch:" + t.Branch
 	}
 	if len(t.Tags) > 0 {
 		line += " (" + strings.Join(t.Tags, ", ") + ")"

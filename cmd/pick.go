@@ -115,6 +115,14 @@ func executePick(cfg *config.Config, claimant, statusFilter, moveTarget string, 
 		return nil, "", fmt.Errorf("writing task: %w", err)
 	}
 
+	// Warn if picked task has an existing worktree from a previous claim.
+	if picked.Worktree != "" {
+		fmt.Fprintf(os.Stderr, "Warning: task #%d has an existing worktree at %s (from previous claim). Check before creating a new one.\n", picked.ID, picked.Worktree)
+	}
+	if picked.Branch != "" {
+		fmt.Fprintf(os.Stderr, "Warning: task #%d has an existing branch %s (from previous claim).\n", picked.ID, picked.Branch)
+	}
+
 	logActivity(cfg, "claim", picked.ID, claimant)
 	if oldStatus != "" {
 		logActivity(cfg, "move", picked.ID, oldStatus+" -> "+picked.Status)

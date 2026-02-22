@@ -29,6 +29,9 @@ type Task struct {
 	ClaimedAt   *time.Time `yaml:"claimed_at,omitempty" json:"claimed_at,omitempty"`
 	Class       string     `yaml:"class,omitempty" json:"class,omitempty"`
 
+	Branch   string `yaml:"branch,omitempty" json:"branch,omitempty"`
+	Worktree string `yaml:"worktree,omitempty" json:"worktree,omitempty"`
+
 	// Body is the markdown content below the frontmatter (not in YAML).
 	Body string `yaml:"-" json:"body,omitempty"`
 
