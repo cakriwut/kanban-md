@@ -50,8 +50,9 @@ const (
 	errorChrome    = 1 // extra line when error toast is displayed
 	maxScrollOff   = 1<<31 - 1
 	// noLineLimit is a sentinel passed to wrapTitle to allow unlimited lines.
-	noLineLimit  = 1<<31 - 1
-	tickInterval = 30 * time.Second // how often durations refresh
+	noLineLimit         = 1<<31 - 1
+	tickInterval        = 30 * time.Second // how often durations refresh
+	createInputOverhead = 6                // dialogPadX*2 + border(2)
 
 	// Create wizard steps.
 	stepTitle    = 0
@@ -1799,13 +1800,15 @@ func (b *Board) createHint() string {
 }
 
 func (b *Board) viewCreateTitle() string {
-	label := lipgloss.NewStyle().Bold(true).Render("Title: ")
-	return label + renderTextInputCursor(b.createTitle, b.createTitleCol)
+	return renderLabeledTextInput("Title: ", b.createTitle, b.createTitleCol, b.createInputWidth("Title: "))
 }
 
 func (b *Board) viewCreateBody() string {
-	label := lipgloss.NewStyle().Bold(true).Render("Body: ")
-	return label + renderTextInputCursor(b.createBody[0], b.createBodyCol)
+	body := ""
+	if len(b.createBody) > 0 {
+		body = b.createBody[0]
+	}
+	return renderLabeledTextInput("Body: ", body, b.createBodyCol, b.createInputWidth("Body: "))
 }
 
 func (b *Board) viewCreatePriority() string {
@@ -1840,6 +1843,71 @@ func renderTextInputCursor(value string, cursor int) string {
 		cursor = len(runes)
 	}
 	return string(runes[:cursor]) + "▏" + string(runes[cursor:])
+}
+
+func (b *Board) createInputWidth(label string) int {
+	width := b.width
+	if width <= 0 {
+		width = 120
+	}
+
+	labelWidth := lipgloss.Width(label)
+	inputWidth := width/2 - labelWidth - createInputOverhead
+	if inputWidth < 1 {
+		inputWidth = 1
+	}
+	return inputWidth
+}
+
+func renderLabeledTextInput(label, value string, cursor, maxValueWidth int) string {
+	input := renderTextInputCursorWrapped(value, cursor, maxValueWidth)
+	indent := strings.Repeat(" ", lipgloss.Width(label))
+	labelStyle := lipgloss.NewStyle().Bold(true)
+
+	lines := strings.Split(input, "\n")
+	lines[0] = labelStyle.Render(label) + lines[0]
+	for i := 1; i < len(lines); i++ {
+		lines[i] = indent + lines[i]
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderTextInputCursorWrapped(value string, cursor int, maxWidth int) string {
+	runes := []rune(value)
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(runes) {
+		cursor = len(runes)
+	}
+	if maxWidth < 1 {
+		maxWidth = 1
+	}
+
+	display := make([]rune, 0, len(runes)+1)
+	for i := 0; i <= len(runes); i++ {
+		if i == cursor {
+			display = append(display, '▏')
+		}
+		if i < len(runes) {
+			display = append(display, runes[i])
+		}
+	}
+
+	if len(display) == 0 {
+		return "▏"
+	}
+
+	var lines []string
+	for i := 0; i < len(display); i += maxWidth {
+		end := i + maxWidth
+		if end > len(display) {
+			end = len(display)
+		}
+		lines = append(lines, string(display[i:end]))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (b *Board) viewHelp() string {

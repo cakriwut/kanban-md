@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -277,6 +278,67 @@ func TestCreate_SpaceInTitle(t *testing.T) {
 	if !containsStr(v, "hello world") {
 		t.Error("expected 'hello world' in dialog")
 	}
+}
+
+func TestCreate_TitleInputWraps(t *testing.T) {
+	b, _ := setupTestBoard(t)
+	m, _ := b.Update(tea.WindowSizeMsg{Width: 24, Height: 40})
+	b = m.(*tui.Board)
+
+	b = sendKey(b, "c")
+	b = typeText(b, "This title keeps typing forever")
+
+	assertCreateInputHasWrappedLine(t, stripANSI(b.View()), "Title: ")
+}
+
+func TestCreate_BodyInputWraps(t *testing.T) {
+	b, _ := setupTestBoard(t)
+	m, _ := b.Update(tea.WindowSizeMsg{Width: 24, Height: 40})
+	b = m.(*tui.Board)
+
+	b = sendKey(b, "c")
+	b = typeText(b, "Short")
+	b = sendSpecialKey(b, tea.KeyTab)
+
+	b = typeText(b, "Body text that should also wrap onto multiple lines")
+	assertCreateInputHasWrappedLine(t, stripANSI(b.View()), "Body: ")
+}
+
+func assertCreateInputHasWrappedLine(t *testing.T, rendered, label string) {
+	t.Helper()
+
+	lines := strings.Split(rendered, "\n")
+	labelLine := -1
+	for i, line := range lines {
+		if strings.Contains(stripDialogLine(line), label) {
+			labelLine = i
+			break
+		}
+	}
+	if labelLine < 0 {
+		t.Fatalf("expected to find %q in create dialog", label)
+	}
+
+	hasContinuationLine := false
+	for i := labelLine + 1; i < len(lines); i++ {
+		line := stripDialogLine(lines[i])
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "tab:") || strings.HasPrefix(line, "enter:") || strings.HasPrefix(line, "Step") {
+			break
+		}
+		hasContinuationLine = true
+		break
+	}
+
+	if !hasContinuationLine {
+		t.Fatalf("expected wrapped %s input to continue on subsequent lines", strings.TrimSuffix(label, ": "))
+	}
+}
+
+func stripDialogLine(line string) string {
+	return strings.TrimSpace(strings.Trim(line, "│"))
 }
 
 func TestCreate_StatusBarShowsCreateHint(t *testing.T) {
