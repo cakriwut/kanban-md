@@ -147,3 +147,33 @@ func TestEdit_FullWizardSavesUpdatedFields(t *testing.T) {
 		t.Errorf("tags = %v, want [ui editing]", tk.Tags)
 	}
 }
+
+func TestEdit_PrefillsMultilineBody(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Write a task with multi-line body.
+	path, err := task.FindByID(cfg.TasksPath(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk, err := task.Read(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk.Body = "line one\nline two\n"
+	if err := task.Write(path, tk); err != nil {
+		t.Fatal(err)
+	}
+
+	b = sendKey(b, "r") // refresh board
+	b = sendKey(b, "e") // open edit
+	b = sendSpecialKey(b, tea.KeyTab) // → body step
+
+	v := b.View()
+	if !containsStr(v, "line one") {
+		t.Errorf("expected 'line one' in body view, got:\n%s", v)
+	}
+	if !containsStr(v, "line two") {
+		t.Errorf("expected 'line two' in body view, got:\n%s", v)
+	}
+}

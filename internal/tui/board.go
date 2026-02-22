@@ -330,9 +330,14 @@ func (b *Board) handleEditStart() {
 	b.createStep = stepTitle
 	b.createTitle = t.Title
 	b.createTitleCol = len([]rune(b.createTitle))
-	b.createBody = []string{strings.TrimSuffix(t.Body, "\n")}
-	b.createBodyRow = 0
-	b.createBodyCol = len([]rune(b.createBody[0]))
+	raw := strings.TrimSuffix(t.Body, "\n")
+	if raw == "" {
+		b.createBody = []string{""}
+	} else {
+		b.createBody = strings.Split(raw, "\n")
+	}
+	b.createBodyRow = len(b.createBody) - 1
+	b.createBodyCol = len([]rune(b.createBody[b.createBodyRow]))
 	b.createPriority = b.cfg.PriorityIndex(t.Priority)
 	if b.createPriority < 0 {
 		b.createPriority = b.defaultPriorityIndex()
@@ -367,6 +372,26 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b, nil
 	}
 
+	// Alt+Enter inserts a newline in the body step.
+	if msg.Type == tea.KeyEnter && msg.Alt && b.createStep == stepBody {
+		if len(b.createBody) == 0 {
+			b.createBody = []string{""}
+		}
+		line := []rune(b.createBody[b.createBodyRow])
+		b.createBodyCol = clampTextCursor(b.createBodyCol, len(line))
+		before := string(line[:b.createBodyCol])
+		after := string(line[b.createBodyCol:])
+		newBody := make([]string, 0, len(b.createBody)+1)
+		newBody = append(newBody, b.createBody[:b.createBodyRow]...)
+		newBody = append(newBody, before, after)
+		if b.createBodyRow+1 < len(b.createBody) {
+			newBody = append(newBody, b.createBody[b.createBodyRow+1:]...)
+		}
+		b.createBody = newBody
+		b.createBodyRow++
+		b.createBodyCol = 0
+		return b, nil
+	}
 	// Enter always submits the wizard (from any step).
 	if msg.Type == tea.KeyEnter {
 		if b.createIsEdit {
@@ -413,7 +438,39 @@ func (b *Board) handleCreateBody(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if len(b.createBody) == 0 {
 		b.createBody = []string{""}
 	}
-	b.applyCreateTextInput(msg, &b.createBody[0], &b.createBodyCol)
+	row := b.createBodyRow
+	line := []rune(b.createBody[row])
+	b.createBodyCol = clampTextCursor(b.createBodyCol, len(line))
+
+	// Up arrow: move to previous line.
+	if msg.Type == tea.KeyUp {
+		if row > 0 {
+			b.createBodyRow--
+			b.createBodyCol = clampTextCursor(b.createBodyCol, len([]rune(b.createBody[b.createBodyRow])))
+		}
+		return b, nil
+	}
+
+	// Down arrow: move to next line.
+	if msg.Type == tea.KeyDown {
+		if row < len(b.createBody)-1 {
+			b.createBodyRow++
+			b.createBodyCol = clampTextCursor(b.createBodyCol, len([]rune(b.createBody[b.createBodyRow])))
+		}
+		return b, nil
+	}
+
+	// Backspace at start of line joins with previous line.
+	if msg.Type == tea.KeyBackspace && b.createBodyCol == 0 && row > 0 {
+		prev := b.createBody[row-1]
+		b.createBodyCol = len([]rune(prev))
+		b.createBody[row-1] = prev + b.createBody[row]
+		b.createBody = append(b.createBody[:row], b.createBody[row+1:]...)
+		b.createBodyRow--
+		return b, nil
+	}
+
+	b.applyCreateTextInput(msg, &b.createBody[row], &b.createBodyCol)
 	return b, nil
 }
 
@@ -1817,7 +1874,7 @@ func (b *Board) createHint() string {
 	case stepTitle:
 		return fmt.Sprintf("tab:next  enter:%s  esc:cancel", action)
 	case stepBody:
-		return fmt.Sprintf("tab:next  shift+tab:back  enter:%s  esc:cancel", action)
+		return fmt.Sprintf("alt+enter:newline  tab:next  shift+tab:back  enter:%s  esc:cancel", action)
 	case stepPriority:
 		return fmt.Sprintf("↑/↓:select  tab:next  shift+tab:back  enter:%s  esc:cancel", action)
 	case stepTags:
@@ -1834,7 +1891,18 @@ func (b *Board) viewCreateTitle() string {
 
 func (b *Board) viewCreateBody() string {
 	label := lipgloss.NewStyle().Bold(true).Render("Body: ")
-	return label + renderTextInputCursor(b.createBody[0], b.createBodyCol)
+	if len(b.createBody) == 0 {
+		b.createBody = []string{""}
+	}
+	var lines []string
+	for i, l := range b.createBody {
+		if i == b.createBodyRow {
+			lines = append(lines, renderTextInputCursor(l, b.createBodyCol))
+		} else {
+			lines = append(lines, l)
+		}
+	}
+	return label + strings.Join(lines, "\n       ")
 }
 
 func (b *Board) viewCreatePriority() string {

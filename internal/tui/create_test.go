@@ -579,3 +579,197 @@ func countTaskFiles(t *testing.T, dir string) int {
 	}
 	return count
 }
+
+// sendAltEnter sends alt+enter to the board.
+func sendAltEnter(b *tui.Board) *tui.Board {
+	m, _ := b.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	return m.(*tui.Board)
+}
+
+func TestCreate_AltEnterInsertsNewlineInBody(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	// Navigate to todo column.
+	b = sendKey(b, "l")
+	b = sendKey(b, "c")
+	b = typeText(b, "Multiline test")
+	b = sendSpecialKey(b, tea.KeyTab) // → body
+
+	// Type first line, alt+enter for newline, type second line.
+	b = typeText(b, "line one")
+	b = sendAltEnter(b)
+	b = typeText(b, "line two")
+	b = sendSpecialKey(b, tea.KeyEnter) // submit
+
+	// Find and read the created task.
+	entries, err := os.ReadDir(cfg.TasksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if containsStr(e.Name(), "multiline-test") {
+			tk, err := task.Read(filepath.Join(cfg.TasksPath(), e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Body should contain both lines separated by newline.
+			if !containsStr(tk.Body, "line one") || !containsStr(tk.Body, "line two") {
+				t.Errorf("body = %q, want both 'line one' and 'line two'", tk.Body)
+			}
+			// Verify the actual newline separation.
+			if tk.Body != "line one\nline two\n" {
+				t.Errorf("body = %q, want %q", tk.Body, "line one\nline two\n")
+			}
+			return
+		}
+	}
+	t.Error("task file not found")
+}
+
+func TestCreate_BodyUpDownNavigation(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	b = sendKey(b, "l")
+	b = sendKey(b, "c")
+	b = typeText(b, "Nav test")
+	b = sendSpecialKey(b, tea.KeyTab) // → body
+
+	// Type two lines.
+	b = typeText(b, "AAA")
+	b = sendAltEnter(b)
+	b = typeText(b, "BBB")
+
+	// Navigate up to first line.
+	m, _ := b.Update(tea.KeyMsg{Type: tea.KeyUp})
+	b = m.(*tui.Board)
+
+	// Type on first line — should modify first line.
+	b = typeText(b, "X")
+	b = sendSpecialKey(b, tea.KeyEnter) // submit
+
+	// Read task and verify first line was modified.
+	entries, err := os.ReadDir(cfg.TasksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if containsStr(e.Name(), "nav-test") {
+			tk, err := task.Read(filepath.Join(cfg.TasksPath(), e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// X was appended to end of first line (cursor was at end after up).
+			if !containsStr(tk.Body, "AAAX") {
+				t.Errorf("body = %q, expected first line to contain 'AAAX'", tk.Body)
+			}
+			if !containsStr(tk.Body, "BBB") {
+				t.Errorf("body = %q, expected second line 'BBB'", tk.Body)
+			}
+			return
+		}
+	}
+	t.Error("task file not found")
+}
+
+func TestCreate_BodyBackspaceJoinsLines(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	b = sendKey(b, "l")
+	b = sendKey(b, "c")
+	b = typeText(b, "Join test")
+	b = sendSpecialKey(b, tea.KeyTab) // → body
+
+	// Type two lines.
+	b = typeText(b, "AB")
+	b = sendAltEnter(b)
+	b = typeText(b, "CD")
+
+	// Move to start of second line and backspace to join.
+	m, _ := b.Update(tea.KeyMsg{Type: tea.KeyHome})
+	b = m.(*tui.Board)
+	b = sendSpecialKey(b, tea.KeyBackspace)
+	b = sendSpecialKey(b, tea.KeyEnter) // submit
+
+	// Read task — should be single line "ABCD".
+	entries, err := os.ReadDir(cfg.TasksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if containsStr(e.Name(), "join-test") {
+			tk, err := task.Read(filepath.Join(cfg.TasksPath(), e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tk.Body != "ABCD\n" {
+				t.Errorf("body = %q, want %q", tk.Body, "ABCD\n")
+			}
+			return
+		}
+	}
+	t.Error("task file not found")
+}
+
+func TestCreate_MultilineBodyView(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	b = sendKey(b, "c")
+	b = typeText(b, "View test")
+	b = sendSpecialKey(b, tea.KeyTab) // → body
+
+	// Type two lines.
+	b = typeText(b, "first line")
+	b = sendAltEnter(b)
+	b = typeText(b, "second line")
+
+	v := b.View()
+	if !containsStr(v, "first line") {
+		t.Error("expected 'first line' in body view")
+	}
+	if !containsStr(v, "second line") {
+		t.Error("expected 'second line' in body view")
+	}
+}
+
+func TestCreate_BodyHintShowsAltEnter(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	b = sendKey(b, "c")
+	b = sendSpecialKey(b, tea.KeyTab) // → body
+
+	v := b.View()
+	if !containsStr(v, "alt+enter:newline") {
+		t.Error("expected 'alt+enter:newline' hint on body step")
+	}
+}
+
+func TestCreate_AltEnterOnTitleStepSubmits(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+
+	b = sendKey(b, "l")
+	b = sendKey(b, "c")
+	b = typeText(b, "Alt enter submit")
+	b = sendAltEnter(b) // should submit, not insert newline
+
+	// Should be back at board view.
+	v := b.View()
+	if containsStr(v, "Create task in") {
+		t.Error("expected board view after alt+enter on title step")
+	}
+
+	// Task should have been created.
+	entries, err := os.ReadDir(cfg.TasksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range entries {
+		if containsStr(e.Name(), "alt-enter-submit") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected task to be created via alt+enter on title step")
+	}
+}
