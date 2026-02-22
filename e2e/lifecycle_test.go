@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
 )
 
 // ---------------------------------------------------------------------------
@@ -331,3 +332,106 @@ func TestConcurrentCreateUniqueIDs(t *testing.T) {
 		t.Errorf("expected %d unique IDs, got %d", n, len(ids))
 	}
 }
+
+
+// ---------------------------------------------------------------------------
+// Stale NextID recovery
+// ---------------------------------------------------------------------------
+
+func TestStaleNextIDRecovery(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "First task")
+	// This could happen after a crash, manual file creation, or worktree operation
+	// Create task files for IDs 5 and 6 (skipping 2, 3, 4)
+	now := "2026-02-22T15:00:00Z"
+	for _, id := range []int{5, 6} {
+		content := fmt.Sprintf(`---
+id: %d
+title: Manual task %d
+status: backlog
+priority: medium
+created: %s
+updated: %s
+---
+`, id, id, now, now)
+		writeTaskFile(t, kanbanDir, id, content)
+	}
+	// Now create a task via CLI - it should detect the max ID and use 7
+	newTask := mustCreateTask(t, kanbanDir, "Recovery task")
+	if newTask.ID != 7 {
+		t.Errorf("new task ID = %d, want 7 (should recover from stale NextID)", newTask.ID)
+	}
+	// Verify another create uses ID 8
+	nextTask := mustCreateTask(t, kanbanDir, "Another task")
+	if nextTask.ID != 8 {
+		t.Errorf("next task ID = %d, want 8", nextTask.ID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Concurrent CLI creates with pre-existing task gaps
+// ---------------------------------------------------------------------------
+
+func TestConcurrentCreateWithExistingGaps(t *testing.T) {
+	kanbanDir := initBoard(t)
+	// Simulate a scenario where tasks were created by different agents/processes
+	// with gaps in IDs (e.g., after crashes, manual edits, worktree switches)
+	now := "2026-02-22T15:00:00Z"
+	for _, id := range []int{1, 3, 5, 8, 10} {
+		content := fmt.Sprintf(`---
+id: %d
+title: Existing task %d
+status: backlog
+priority: medium
+created: %s
+updated: %s
+---
+`, id, id, now, now)
+		writeTaskFile(t, kanbanDir, id, content)
+	}
+	
+	// Now launch concurrent creates - they should all use IDs >= 11
+	const n = 10
+	type createResult struct {
+		task taskJSON
+		err  error
+	}
+	results := make(chan createResult, n)
+	
+	for i := range n {
+		go func(idx int) {
+			title := fmt.Sprintf("Concurrent task %d", idx)
+			var task taskJSON
+			r := runKanbanJSON(t, kanbanDir, &task, "create", title)
+			if r.exitCode != 0 {
+				results <- createResult{err: fmt.Errorf("create %d failed: %s", idx, r.stderr)}
+				return
+			}
+			results <- createResult{task: task}
+		}(i)
+	}
+	
+	// Collect results and check for duplicates
+	ids := make(map[int]bool, n)
+	for range n {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if r.task.ID <= 10 {
+			t.Errorf("task ID %d <= 10 (should use IDs after max existing ID 10)", r.task.ID)
+		}
+		if ids[r.task.ID] {
+			t.Errorf("duplicate ID %d", r.task.ID)
+		}
+		ids[r.task.ID] = true
+	}
+	
+	if len(ids) != n {
+		t.Errorf("expected %d unique IDs, got %d", n, len(ids))
+	}
+}
+
+
+
+

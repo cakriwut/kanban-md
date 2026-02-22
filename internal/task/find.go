@@ -114,3 +114,34 @@ func ExtractIDFromFilename(filename string) (int, error) {
 	}
 	return strconv.Atoi(matches[1])
 }
+
+// MaxIDFromFiles scans task filenames in the given directory and returns the
+// highest task ID found. Returns 0 if no task files exist or the directory is
+// empty. This is used as defense-in-depth to prevent duplicate IDs when the
+// NextID counter in config.yml is stale (e.g. after a crash, manual edit, or
+// concurrent access from a process that bypassed the lock).
+func MaxIDFromFiles(tasksDir string) (int, error) {
+	entries, err := os.ReadDir(tasksDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("reading tasks directory: %w", err)
+	}
+
+	maxID := 0
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+		id, err := ExtractIDFromFilename(entry.Name())
+		if err != nil {
+			continue // skip files without a valid ID prefix
+		}
+		if id > maxID {
+			maxID = id
+		}
+	}
+
+	return maxID, nil
+}

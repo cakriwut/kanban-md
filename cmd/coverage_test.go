@@ -965,13 +965,17 @@ func TestResolveDir_WithFlagDir(t *testing.T) {
 	oldFlagDir := flagDir
 	flagDir = "/some/path"
 	t.Cleanup(func() { flagDir = oldFlagDir })
-
 	got, err := resolveDir()
 	if err != nil {
 		t.Fatalf("resolveDir() error: %v", err)
 	}
-	if got != "/some/path" {
-		t.Errorf("resolveDir() = %q, want %q", got, "/some/path")
+	// The result should be an absolute path (platform-normalized)
+	wantAbs, err := filepath.Abs("/some/path")
+	if err != nil {
+		t.Fatalf("filepath.Abs() error: %v", err)
+	}
+	if got != wantAbs {
+		t.Errorf("resolveDir() = %q, want %q", got, wantAbs)
 	}
 }
 

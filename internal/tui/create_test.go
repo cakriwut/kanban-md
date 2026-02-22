@@ -220,21 +220,22 @@ func TestCreate_UsesCurrentColumnStatus(t *testing.T) {
 
 func TestCreate_NextIDIncrements(t *testing.T) {
 	b, cfg := setupTestBoard(t)
-
-	initialNextID := cfg.NextID
-
+	// setupTestBoard creates 4 tasks (IDs 1-4), so the actual max ID is 4.
+	// When executeCreate runs, defense-in-depth will scan files and set NextID=5,
+	// then create task 5 and increment to 6.
+	const maxExistingID = 4
+	expectedNextID := maxExistingID + 2 // +1 for the created task, +1 for next
 	// Create a task using Enter to finish immediately from title.
 	b = sendKey(b, "c")
 	b = typeText(b, "Increment test")
 	_ = sendSpecialKey(b, tea.KeyEnter)
-
-	// Reload config and check NextID incremented.
+	// Reload config and check NextID incremented correctly.
 	reloaded, err := config.Load(cfg.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.NextID != initialNextID+1 {
-		t.Errorf("NextID = %d, want %d", reloaded.NextID, initialNextID+1)
+	if reloaded.NextID != expectedNextID {
+		t.Errorf("NextID = %d, want %d", reloaded.NextID, expectedNextID)
 	}
 }
 

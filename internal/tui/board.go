@@ -17,6 +17,7 @@ import (
 
 	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/antopolskiy/kanban-md/internal/filelock"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
@@ -513,13 +514,45 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 		return b, nil
 	}
 
+	// Acquire file lock to prevent concurrent creates from CLI or other TUI
+	// instances reading the same next_id and generating duplicate task IDs.
+	unlock, lockErr := filelock.Lock(filepath.Join(b.cfg.Dir(), ".lock"))
+	if lockErr != nil {
+		b.err = fmt.Errorf("acquiring lock: %w", lockErr)
+		b.resetCreateState()
+		b.view = viewBoard
+		return b, nil
+	}
+	defer unlock() //nolint:errcheck // best-effort unlock on exit
+
+	// Reload config from disk to get the latest NextID (another process may
+	// have incremented it since the TUI started).
+	freshCfg, cfgErr := config.Load(b.cfg.Dir())
+	if cfgErr != nil {
+		b.err = fmt.Errorf("reloading config: %w", cfgErr)
+		b.resetCreateState()
+		b.view = viewBoard
+		return b, nil
+	}
+	b.cfg.NextID = freshCfg.NextID
+
+	// Defense-in-depth: scan existing task files to find the actual max ID.
+	// If NextID is stale, bump it to avoid duplicates.
+	maxID, scanErr := task.MaxIDFromFiles(b.cfg.TasksPath())
+	if scanErr != nil {
+		b.err = fmt.Errorf("scanning task files: %w", scanErr)
+		b.resetCreateState()
+		b.view = viewBoard
+		return b, nil
+	}
+	if maxID >= b.cfg.NextID {
+		b.cfg.NextID = maxID + 1
+	}
+	priority := b.selectedCreatePriority()
+	now := b.now()
 	// Build body from lines.
 	body := strings.TrimSpace(strings.Join(b.createBody, "\n"))
-
-	priority := b.selectedCreatePriority()
 	tags := parseTagsCSV(b.createTags)
-
-	now := b.now()
 	id := b.cfg.NextID
 	t := &task.Task{
 		ID:       id,
@@ -532,18 +565,15 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 		Created:  now,
 		Updated:  now,
 	}
-
 	slug := task.GenerateSlug(title)
 	filename := task.GenerateFilename(id, slug)
 	path := filepath.Join(b.cfg.TasksPath(), filename)
-
 	if err := task.Write(path, t); err != nil {
 		b.err = fmt.Errorf("creating task: %w", err)
 		b.resetCreateState()
 		b.view = viewBoard
 		return b, nil
 	}
-
 	b.cfg.NextID++
 	if err := b.cfg.Save(); err != nil {
 		b.err = fmt.Errorf("saving config after create: %w", err)
