@@ -133,6 +133,14 @@ func executeMove(cfg *config.Config, id int, cmd *cobra.Command, args []string) 
 		return nil, "", fmt.Errorf("writing task: %w", err)
 	}
 
+	// Warn if moving to terminal status with worktree/branch still set.
+	if cfg.IsTerminalStatus(newStatus) && t.Worktree != "" {
+		fmt.Fprintf(os.Stderr, "Warning: task #%d still has worktree %s. Consider removing it.\n", t.ID, t.Worktree)
+	}
+	if cfg.IsTerminalStatus(newStatus) && t.Branch != "" {
+		fmt.Fprintf(os.Stderr, "Warning: task #%d still has branch %s. Consider cleaning it up.\n", t.ID, t.Branch)
+	}
+
 	logActivity(cfg, "move", id, oldStatus+" -> "+newStatus)
 	return t, oldStatus, nil
 }

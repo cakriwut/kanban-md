@@ -157,6 +157,13 @@ func TaskDetail(w io.Writer, t *task.Task) {
 		printField(w, "Claimed by", claimStr)
 	}
 
+	if t.Branch != "" {
+		printField(w, "Branch", t.Branch)
+	}
+	if t.Worktree != "" {
+		printField(w, "Worktree", t.Worktree)
+	}
+
 	if t.Body != "" {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, t.Body)

@@ -258,3 +258,37 @@ func TestCompatV1TaskWithoutClaimAndClass(t *testing.T) {
 		t.Errorf("Class = %q, want empty", tk.Class)
 	}
 }
+
+func TestCompatV1TaskWithBranchAndWorktree(t *testing.T) {
+	path := filepath.Join(v1FixtureDir, "007-with-branch-and-worktree.md")
+	tk, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() v1 task with branch and worktree: %v", err)
+	}
+
+	if tk.ID != 7 {
+		t.Errorf("ID = %d, want 7", tk.ID)
+	}
+	if tk.Branch != "task/7-feature-branch" {
+		t.Errorf("Branch = %q, want %q", tk.Branch, "task/7-feature-branch")
+	}
+	if tk.Worktree != "../kanban-md-task-7" {
+		t.Errorf("Worktree = %q, want %q", tk.Worktree, "../kanban-md-task-7")
+	}
+}
+
+func TestCompatV1TaskWithoutBranchAndWorktree(t *testing.T) {
+	path := filepath.Join(v1FixtureDir, "002-design-api.md")
+	tk, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() v1 task: %v", err)
+	}
+
+	// Tasks without branch/worktree fields should have zero values.
+	if tk.Branch != "" {
+		t.Errorf("Branch = %q, want empty", tk.Branch)
+	}
+	if tk.Worktree != "" {
+		t.Errorf("Worktree = %q, want empty", tk.Worktree)
+	}
+}

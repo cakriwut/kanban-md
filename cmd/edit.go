@@ -51,6 +51,10 @@ func init() {
 	editCmd.Flags().String("claim", "", "claim task for an agent")
 	editCmd.Flags().Bool("release", false, "release claim on task")
 	editCmd.Flags().String("class", "", "set class of service")
+	editCmd.Flags().String("branch", "", "set git branch name")
+	editCmd.Flags().Bool("clear-branch", false, "clear branch field")
+	editCmd.Flags().String("worktree", "", "set worktree path")
+	editCmd.Flags().Bool("clear-worktree", false, "clear worktree field")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -328,7 +332,35 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 		t.Class = v
 		changed = true
 	}
+	branchSet := cmd.Flags().Changed("branch")
+	clearBranch, _ := cmd.Flags().GetBool("clear-branch")
+	if branchSet && clearBranch {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --branch and --clear-branch together")
+	}
+	if branchSet {
+		v, _ := cmd.Flags().GetString("branch")
+		t.Branch = v
+		changed = true
+	}
+	if clearBranch {
+		t.Branch = ""
+		changed = true
+	}
 
+	worktreeSet := cmd.Flags().Changed("worktree")
+	clearWorktree, _ := cmd.Flags().GetBool("clear-worktree")
+	if worktreeSet && clearWorktree {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --worktree and --clear-worktree together")
+	}
+	if worktreeSet {
+		v, _ := cmd.Flags().GetString("worktree")
+		t.Worktree = v
+		changed = true
+	}
+	if clearWorktree {
+		t.Worktree = ""
+		changed = true
+	}
 	return changed, nil
 }
 
