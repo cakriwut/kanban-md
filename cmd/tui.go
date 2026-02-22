@@ -132,6 +132,9 @@ func offerInitTUI() (*config.Config, error) {
 	}
 
 	fmt.Printf("Board %q created in %s\n", name, kanbanDir)
+	if err := offerAddKanbanToGitignore(kanbanDir); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 

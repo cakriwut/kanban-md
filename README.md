@@ -214,6 +214,11 @@ kanban-md init [--name NAME] [--statuses s1,s2,s3] [--wip-limit status:N]
 | `--statuses` | Comma-separated status list (default: backlog,todo,in-progress,review,done,archived) |
 | `--wip-limit` | WIP limit per status (format: `status:N`, repeatable) |
 
+After creating a board, kanban-md prompts to add the board directory (for example, `kanban/`) to `.gitignore`:
+
+- If `.gitignore` exists in the board directory parent, the entry is appended.
+- If `.gitignore` does not exist, it is created with the board directory entry.
+
 ### `create`
 
 Create a new task. Aliases: `add`. Title can be provided as a positional argument or via `--title`.
@@ -496,6 +501,7 @@ When using `--write-to`, the context block is wrapped in HTML comment markers (`
 ## Interactive TUI
 
 `kanban-md tui` opens a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
+If no board exists in the current directory, `kanban-md tui` can initialize one and then offers to add that board directory to `.gitignore`.
 
 ```bash
 kanban-md tui             # launch from any directory with a kanban/ board
