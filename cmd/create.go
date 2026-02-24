@@ -69,7 +69,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	defer unlock() //nolint:errcheck // best-effort unlock on exit
 
-	cfg, err := config.Load(dir)
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}

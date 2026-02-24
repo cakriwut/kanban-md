@@ -3,6 +3,7 @@ package task
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,5 +95,29 @@ func TestWriteNoBody(t *testing.T) {
 
 	if loaded.Body != "" {
 		t.Errorf("Body = %q, want empty", loaded.Body)
+	}
+}
+
+func TestReadMissingRequiredFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "001-missing-fields.md")
+	content := `---
+title: Missing id
+status: backlog
+priority: medium
+created: 2026-02-24T12:00:00Z
+updated: 2026-02-24T12:00:00Z
+---
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Read(path)
+	if err == nil {
+		t.Fatal("expected error for missing required field")
+	}
+	if !strings.Contains(err.Error(), "missing required field: id") {
+		t.Fatalf("error = %v, want missing required field message", err)
 	}
 }

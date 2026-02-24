@@ -62,6 +62,7 @@ Project management tools are designed for humans clicking buttons. kanban-md is 
 
 - **Agents-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
 - **Multi-agent safe.** Claims provide cooperative locking so multiple agents can work the same board without stepping on each other. Claims expire automatically, and the `pick` command atomically finds, claims, and moves the next available task.
+- **Self-healing task IDs.** Commands automatically detect duplicate IDs, filename/frontmatter ID mismatches, and `next_id` drift, then repair them before proceeding.
 - **Plain files.** Every task is a Markdown file. Agents, humans, scripts, and `grep` all work equally well. No API tokens, no authentication, no rate limits.
 - **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
 - **Skills included.** Pre-written skills for using the CLI tool and a multi-agent development workflow. Installable via `kanban-md skill install`.

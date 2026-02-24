@@ -119,7 +119,19 @@ func loadConfig() (*config.Config, error) {
 		return nil, err
 	}
 
-	return config.Load(dir)
+	cfg, err := config.Load(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	report, err := task.EnsureConsistency(cfg)
+	if err != nil {
+		return nil, err
+	}
+	printWarnings(report.Warnings)
+	printConsistencyRepairs(report.Repairs)
+
+	return cfg, nil
 }
 
 // outputFormat returns the detected output format from flags/env.
@@ -131,6 +143,12 @@ func outputFormat() output.Format {
 func printWarnings(warnings []task.ReadWarning) {
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "Warning: skipping malformed file %s: %v\n", w.File, w.Err)
+	}
+}
+
+func printConsistencyRepairs(repairs []string) {
+	for _, repair := range repairs {
+		fmt.Fprintf(os.Stderr, "Warning: auto-repaired consistency issue: %s\n", repair)
 	}
 }
 
