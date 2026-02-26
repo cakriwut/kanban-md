@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/filelock"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
@@ -51,8 +52,10 @@ const (
 	errorChrome    = 1 // extra line when error toast is displayed
 	maxScrollOff   = 1<<31 - 1
 	// noLineLimit is a sentinel passed to wrapTitle to allow unlimited lines.
-	noLineLimit  = 1<<31 - 1
-	tickInterval = 30 * time.Second // how often durations refresh
+	noLineLimit          = 1<<31 - 1
+	tickInterval         = 30 * time.Second // how often durations refresh
+	createInputOverhead  = 6                // dialogPadX*2 + border(2)
+	createBodyInputLines = 6                // fixed visible lines in create textarea
 
 	// Create wizard steps.
 	stepTitle    = 0
@@ -91,18 +94,15 @@ type Board struct {
 	deleteTitle string
 
 	// Create wizard.
-	createStatus   string // column where task will be created
-	createStep     int    // current wizard step (0=title, 1=body, 2=priority, 3=tags)
-	createTitle    string
-	createTitleCol int
-	createBody     []string // lines of body text
-	createBodyRow  int      // cursor row in body textarea
-	createBodyCol  int      // cursor column in body textarea
-	createPriority int      // index into cfg.Priorities
-	createTags     string
-	createTagsCol  int
-	createIsEdit   bool
-	createEditID   int
+	createStatus      string // column where task will be created
+	createStep        int    // current wizard step (0=title, 1=body, 2=priority, 3=tags)
+	createPriority    int    // index into cfg.Priorities
+	createIsEdit      bool
+	createEditID      int
+	createInputsReady bool
+	createTitleInput  textinput.Model
+	createBodyInput   textarea.Model
+	createTagsInput   textinput.Model
 }
 
 // column groups tasks belonging to a single status.
@@ -147,6 +147,7 @@ func (b *Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		b.width = msg.Width
 		b.height = msg.Height
+		b.applyCreateInputLayout()
 		return b, nil
 	case ReloadMsg:
 		b.loadTasks()
@@ -303,19 +304,17 @@ func (b *Board) handleCreateStart() {
 	if col == nil {
 		return
 	}
+	b.initCreateInputs()
 	b.createIsEdit = false
 	b.createEditID = 0
 	b.createStatus = col.status
 	b.createStep = stepTitle
-	b.createTitle = ""
-	b.createTitleCol = 0
-	b.createBody = []string{""}
-	b.createBodyRow = 0
-	b.createBodyCol = 0
 	b.createPriority = b.defaultPriorityIndex()
-	b.createTags = ""
-	b.createTagsCol = 0
+	b.createTitleInput.SetValue("")
+	b.createBodyInput.SetValue("")
+	b.createTagsInput.SetValue("")
 	b.view = viewCreate
+	b.focusCreateField()
 }
 
 func (b *Board) handleEditStart() {
@@ -324,26 +323,24 @@ func (b *Board) handleEditStart() {
 		return
 	}
 
+	b.initCreateInputs()
 	b.createIsEdit = true
 	b.createEditID = t.ID
 	b.createStatus = t.Status
 	b.createStep = stepTitle
-	b.createTitle = t.Title
-	b.createTitleCol = len([]rune(b.createTitle))
-	raw := strings.TrimSuffix(t.Body, "\n")
-	if raw == "" {
-		b.createBody = []string{""}
-	} else {
-		b.createBody = strings.Split(raw, "\n")
-	}
-	b.createBodyRow = len(b.createBody) - 1
-	b.createBodyCol = len([]rune(b.createBody[b.createBodyRow]))
 	b.createPriority = b.cfg.PriorityIndex(t.Priority)
 	if b.createPriority < 0 {
 		b.createPriority = b.defaultPriorityIndex()
 	}
-	b.createTags = strings.Join(t.Tags, ",")
-	b.createTagsCol = len([]rune(b.createTags))
+	bodyText := strings.TrimSuffix(t.Body, "\n")
+	tagText := strings.Join(t.Tags, ",")
+	b.createTitleInput.SetValue(t.Title)
+	b.createBodyInput.SetValue(bodyText)
+	b.createTagsInput.SetValue(tagText)
+	b.createTitleInput.SetCursor(len([]rune(t.Title)))
+	b.createBodyInput.SetCursor(len([]rune(bodyText)))
+	b.createTagsInput.SetCursor(len([]rune(tagText)))
+	b.focusCreateField()
 	b.view = viewCreate
 }
 
@@ -359,9 +356,12 @@ func (b *Board) defaultPriorityIndex() int {
 func (b *Board) resetCreateState() {
 	b.createIsEdit = false
 	b.createEditID = 0
-	b.createTitleCol = 0
-	b.createBodyCol = 0
-	b.createTagsCol = 0
+	b.createTitleInput.SetValue("")
+	b.createBodyInput.SetValue("")
+	b.createTagsInput.SetValue("")
+	b.createTitleInput.Blur()
+	b.createBodyInput.Blur()
+	b.createTagsInput.Blur()
 }
 
 func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -372,26 +372,6 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b, nil
 	}
 
-	// Alt+Enter inserts a newline in the body step.
-	if msg.Type == tea.KeyEnter && msg.Alt && b.createStep == stepBody {
-		if len(b.createBody) == 0 {
-			b.createBody = []string{""}
-		}
-		line := []rune(b.createBody[b.createBodyRow])
-		b.createBodyCol = clampTextCursor(b.createBodyCol, len(line))
-		before := string(line[:b.createBodyCol])
-		after := string(line[b.createBodyCol:])
-		newBody := make([]string, 0, len(b.createBody)+1)
-		newBody = append(newBody, b.createBody[:b.createBodyRow]...)
-		newBody = append(newBody, before, after)
-		if b.createBodyRow+1 < len(b.createBody) {
-			newBody = append(newBody, b.createBody[b.createBodyRow+1:]...)
-		}
-		b.createBody = newBody
-		b.createBodyRow++
-		b.createBodyCol = 0
-		return b, nil
-	}
 	// Enter always submits the wizard (from any step).
 	if msg.Type == tea.KeyEnter {
 		if b.createIsEdit {
@@ -405,6 +385,7 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if b.createStep < stepCount-1 {
 			b.createStep++
 		}
+		b.focusCreateField()
 		return b, nil
 	}
 
@@ -413,6 +394,7 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if b.createStep > 0 {
 			b.createStep--
 		}
+		b.focusCreateField()
 		return b, nil
 	}
 
@@ -430,48 +412,17 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (b *Board) handleCreateTitle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	b.applyCreateTextInput(msg, &b.createTitle, &b.createTitleCol)
+	cmd := b.applyCreateTextInput(msg, &b.createTitleInput)
+	if cmd != nil {
+		return b, cmd
+	}
 	return b, nil
 }
 
 func (b *Board) handleCreateBody(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if len(b.createBody) == 0 {
-		b.createBody = []string{""}
-	}
-	row := b.createBodyRow
-	line := []rune(b.createBody[row])
-	b.createBodyCol = clampTextCursor(b.createBodyCol, len(line))
-
-	// Up arrow: move to previous line.
-	if msg.Type == tea.KeyUp {
-		if row > 0 {
-			b.createBodyRow--
-			b.createBodyCol = clampTextCursor(b.createBodyCol, len([]rune(b.createBody[b.createBodyRow])))
-		}
-		return b, nil
-	}
-
-	// Down arrow: move to next line.
-	if msg.Type == tea.KeyDown {
-		if row < len(b.createBody)-1 {
-			b.createBodyRow++
-			b.createBodyCol = clampTextCursor(b.createBodyCol, len([]rune(b.createBody[b.createBodyRow])))
-		}
-		return b, nil
-	}
-
-	// Backspace at start of line joins with previous line.
-	if msg.Type == tea.KeyBackspace && b.createBodyCol == 0 && row > 0 {
-		prev := b.createBody[row-1]
-		b.createBodyCol = len([]rune(prev))
-		b.createBody[row-1] = prev + b.createBody[row]
-		b.createBody = append(b.createBody[:row], b.createBody[row+1:]...)
-		b.createBodyRow--
-		return b, nil
-	}
-
-	b.applyCreateTextInput(msg, &b.createBody[row], &b.createBodyCol)
-	return b, nil
+	m, cmd := b.createBodyInput.Update(msg)
+	b.createBodyInput = m
+	return b, cmd
 }
 
 func (b *Board) handleCreatePriority(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -489,127 +440,83 @@ func (b *Board) handleCreatePriority(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (b *Board) handleCreateTags(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	b.applyCreateTextInput(msg, &b.createTags, &b.createTagsCol)
+	cmd := b.applyCreateTextInput(msg, &b.createTagsInput)
+	if cmd != nil {
+		return b, cmd
+	}
 	return b, nil
 }
 
-func (b *Board) applyCreateTextInput(msg tea.KeyMsg, value *string, cursor *int) {
-	runes := []rune(*value)
-	*cursor = clampTextCursor(*cursor, len(runes))
-	if moveCreateCursor(msg.String(), len(runes), cursor) {
+func (b *Board) initCreateInputs() {
+	b.createTitleInput = textinput.New()
+	b.createTitleInput.Prompt = ""
+	b.createTagsInput = textinput.New()
+	b.createTagsInput.Prompt = ""
+
+	b.createBodyInput = textarea.New()
+	b.createBodyInput.Prompt = ""
+	b.createBodyInput.ShowLineNumbers = false
+	b.createBodyInput.SetHeight(createBodyInputLines)
+	b.createInputsReady = true
+
+	b.applyCreateInputLayout()
+}
+
+func (b *Board) applyCreateTextInput(msg tea.KeyMsg, input *textinput.Model) tea.Cmd {
+	m, cmd := input.Update(msg)
+	*input = m
+	return cmd
+}
+
+func (b *Board) focusCreateField() {
+	if !b.createInputsReady {
 		return
 	}
-	runes = applyCreateTextEdit(msg, runes, cursor)
-	*value = string(runes)
-}
 
-func clampTextCursor(cursor, maxPos int) int {
-	if cursor < 0 {
-		return 0
-	}
-	if cursor > maxPos {
-		return maxPos
-	}
-	return cursor
-}
+	b.createTitleInput.Blur()
+	b.createBodyInput.Blur()
+	b.createTagsInput.Blur()
 
-func moveCreateCursor(k string, textLen int, cursor *int) bool {
-	switch k {
-	case keyLeft:
-		if *cursor > 0 {
-			*cursor--
-		}
-		return true
-	case keyRight:
-		if *cursor < textLen {
-			*cursor++
-		}
-		return true
-	case keyHome, "ctrl+a":
-		*cursor = 0
-		return true
-	case keyEnd, "ctrl+e":
-		*cursor = textLen
-		return true
-	default:
-		return false
+	switch b.createStep {
+	case stepTitle:
+		b.createTitleInput.Focus()
+	case stepBody:
+		b.createBodyInput.Focus()
+	case stepTags:
+		b.createTagsInput.Focus()
 	}
 }
 
-func applyCreateTextEdit(msg tea.KeyMsg, runes []rune, cursor *int) []rune {
-	switch msg.Type {
-	case tea.KeyBackspace:
-		if *cursor > 0 {
-			runes = append(runes[:*cursor-1], runes[*cursor:]...)
-			*cursor--
-		}
-	case tea.KeyDelete:
-		if *cursor < len(runes) {
-			runes = append(runes[:*cursor], runes[*cursor+1:]...)
-		}
-	case tea.KeyRunes:
-		if len(msg.Runes) > 0 {
-			left := append([]rune{}, runes[:*cursor]...)
-			left = append(left, msg.Runes...)
-			runes = append(left, runes[*cursor:]...)
-			*cursor += len(msg.Runes)
-		}
-	case tea.KeySpace:
-		left := append([]rune{}, runes[:*cursor]...)
-		left = append(left, ' ')
-		runes = append(left, runes[*cursor:]...)
-		*cursor++
+func (b *Board) applyCreateInputLayout() {
+	if !b.createInputsReady {
+		return
 	}
-	return runes
+
+	inputWidth := b.createInputWidth("Title: ")
+	if inputWidth <= 0 {
+		return
+	}
+
+	b.createTitleInput.Width = inputWidth
+	b.createTagsInput.Width = inputWidth
+	b.createBodyInput.SetWidth(inputWidth)
+	b.createBodyInput.SetHeight(createBodyInputLines)
 }
 
 func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
-	title := strings.TrimSpace(b.createTitle)
+	title := strings.TrimSpace(b.createTitleInput.Value())
 	if title == "" {
 		b.resetCreateState()
 		b.view = viewBoard
 		return b, nil
 	}
 
-	// Acquire file lock to prevent concurrent creates from CLI or other TUI
-	// instances reading the same next_id and generating duplicate task IDs.
-	unlock, lockErr := filelock.Lock(filepath.Join(b.cfg.Dir(), ".lock"))
-	if lockErr != nil {
-		b.err = fmt.Errorf("acquiring lock: %w", lockErr)
-		b.resetCreateState()
-		b.view = viewBoard
-		return b, nil
-	}
-	defer unlock() //nolint:errcheck // best-effort unlock on exit
+	body := strings.TrimSpace(b.createBodyInput.Value())
 
-	// Reload config from disk to get the latest NextID (another process may
-	// have incremented it since the TUI started).
-	freshCfg, cfgErr := config.Load(b.cfg.Dir())
-	if cfgErr != nil {
-		b.err = fmt.Errorf("reloading config: %w", cfgErr)
-		b.resetCreateState()
-		b.view = viewBoard
-		return b, nil
-	}
-	b.cfg.NextID = freshCfg.NextID
-
-	// Defense-in-depth: scan existing task files to find the actual max ID.
-	// If NextID is stale, bump it to avoid duplicates.
-	maxID, scanErr := task.MaxIDFromFiles(b.cfg.TasksPath())
-	if scanErr != nil {
-		b.err = fmt.Errorf("scanning task files: %w", scanErr)
-		b.resetCreateState()
-		b.view = viewBoard
-		return b, nil
-	}
-	if maxID >= b.cfg.NextID {
-		b.cfg.NextID = maxID + 1
-	}
 	priority := b.selectedCreatePriority()
+	tags := parseTagsCSV(b.createTagsInput.Value())
+
 	now := b.now()
-	// Build body from lines.
-	body := strings.TrimSpace(strings.Join(b.createBody, "\n"))
-	tags := parseTagsCSV(b.createTags)
 	id := b.cfg.NextID
 	t := &task.Task{
 		ID:       id,
@@ -622,15 +529,18 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 		Created:  now,
 		Updated:  now,
 	}
+
 	slug := task.GenerateSlug(title)
 	filename := task.GenerateFilename(id, slug)
 	path := filepath.Join(b.cfg.TasksPath(), filename)
+
 	if err := task.Write(path, t); err != nil {
 		b.err = fmt.Errorf("creating task: %w", err)
 		b.resetCreateState()
 		b.view = viewBoard
 		return b, nil
 	}
+
 	b.cfg.NextID++
 	if err := b.cfg.Save(); err != nil {
 		b.err = fmt.Errorf("saving config after create: %w", err)
@@ -646,7 +556,7 @@ func (b *Board) executeCreate() (tea.Model, tea.Cmd) {
 }
 
 func (b *Board) executeEdit() (tea.Model, tea.Cmd) {
-	title := strings.TrimSpace(b.createTitle)
+	title := strings.TrimSpace(b.createTitleInput.Value())
 	if title == "" {
 		b.resetCreateState()
 		b.view = viewBoard
@@ -671,9 +581,9 @@ func (b *Board) executeEdit() (tea.Model, tea.Cmd) {
 
 	oldTitle := tk.Title
 	tk.Title = title
-	tk.Body = strings.TrimSpace(strings.Join(b.createBody, "\n"))
+	tk.Body = strings.TrimSpace(b.createBodyInput.Value())
 	tk.Priority = b.selectedCreatePriority()
-	tk.Tags = parseTagsCSV(b.createTags)
+	tk.Tags = parseTagsCSV(b.createTagsInput.Value())
 	tk.Updated = b.now()
 
 	if _, err := writeTaskAndRename(path, tk, oldTitle); err != nil {
@@ -1874,7 +1784,7 @@ func (b *Board) createHint() string {
 	case stepTitle:
 		return fmt.Sprintf("tab:next  enter:%s  esc:cancel", action)
 	case stepBody:
-		return fmt.Sprintf("alt+enter:newline  tab:next  shift+tab:back  enter:%s  esc:cancel", action)
+		return fmt.Sprintf("tab:next  shift+tab:back  enter:%s  esc:cancel", action)
 	case stepPriority:
 		return fmt.Sprintf("↑/↓:select  tab:next  shift+tab:back  enter:%s  esc:cancel", action)
 	case stepTags:
@@ -1885,24 +1795,13 @@ func (b *Board) createHint() string {
 }
 
 func (b *Board) viewCreateTitle() string {
-	label := lipgloss.NewStyle().Bold(true).Render("Title: ")
-	return label + renderTextInputCursor(b.createTitle, b.createTitleCol)
+	b.applyCreateInputLayout()
+	return b.renderLabeledCreateInput("Title: ", b.createTitleInput.View())
 }
 
 func (b *Board) viewCreateBody() string {
-	label := lipgloss.NewStyle().Bold(true).Render("Body: ")
-	if len(b.createBody) == 0 {
-		b.createBody = []string{""}
-	}
-	var lines []string
-	for i, l := range b.createBody {
-		if i == b.createBodyRow {
-			lines = append(lines, renderTextInputCursor(l, b.createBodyCol))
-		} else {
-			lines = append(lines, l)
-		}
-	}
-	return label + strings.Join(lines, "\n       ")
+	b.applyCreateInputLayout()
+	return b.renderLabeledCreateInput("Body: ", b.createBodyInput.View())
 }
 
 func (b *Board) viewCreatePriority() string {
@@ -1923,20 +1822,37 @@ func (b *Board) viewCreatePriority() string {
 }
 
 func (b *Board) viewCreateTagsStep() string {
-	label := lipgloss.NewStyle().Bold(true).Render("Tags: ")
 	hint := dimStyle.Render("(comma-separated)")
-	return label + renderTextInputCursor(b.createTags, b.createTagsCol) + "  " + hint
+	b.applyCreateInputLayout()
+	return b.renderLabeledCreateInput("Tags: ", b.createTagsInput.View()) + "  " + hint
 }
 
-func renderTextInputCursor(value string, cursor int) string {
-	runes := []rune(value)
-	if cursor < 0 {
-		cursor = 0
+func (b *Board) createInputWidth(label string) int {
+	width := b.width
+	if width <= 0 {
+		width = 120
 	}
-	if cursor > len(runes) {
-		cursor = len(runes)
+
+	labelWidth := lipgloss.Width(label)
+	inputWidth := width/2 - labelWidth - createInputOverhead
+	if inputWidth < 1 {
+		inputWidth = 1
 	}
-	return string(runes[:cursor]) + "▏" + string(runes[cursor:])
+	return inputWidth
+}
+
+func (b *Board) renderLabeledCreateInput(label, value string) string {
+	value = strings.TrimRight(value, "\n")
+	indent := strings.Repeat(" ", lipgloss.Width(label))
+	labelStyle := lipgloss.NewStyle().Bold(true)
+
+	lines := strings.Split(value, "\n")
+	lines[0] = labelStyle.Render(label) + lines[0]
+	for i := 1; i < len(lines); i++ {
+		lines[i] = indent + lines[i]
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (b *Board) viewHelp() string {

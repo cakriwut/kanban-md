@@ -14,6 +14,8 @@ import (
 // idPrefixRe matches the numeric ID prefix of a task filename.
 var idPrefixRe = regexp.MustCompile(`^(\d+)-`)
 
+const taskFileExt = ".md"
+
 // FindByID scans the tasks directory for a file matching the given ID.
 // Returns the full path to the task file.
 func FindByID(tasksDir string, id int) (string, error) {
@@ -23,9 +25,28 @@ func FindByID(tasksDir string, id int) (string, error) {
 	}
 
 	idStr := strconv.Itoa(id)
+	path, prefixFallback := findByFilenamePrefix(entries, tasksDir, idStr, id)
+	if path != "" {
+		return path, nil
+	}
+
+	path = findByFrontmatterID(entries, tasksDir, id)
+	if path != "" {
+		return path, nil
+	}
+	if prefixFallback != "" {
+		return prefixFallback, nil
+	}
+
+	return "", clierr.Newf(clierr.TaskNotFound, "task not found: #%d", id).
+		WithDetails(map[string]any{"id": id})
+}
+
+func findByFilenamePrefix(entries []os.DirEntry, tasksDir, idStr string, id int) (string, string) {
+	var prefixFallback string
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
+		if !isTaskMarkdown(entry) {
 			continue
 		}
 		// Strip leading zeros and check if the numeric prefix matches the ID.
@@ -34,13 +55,44 @@ func FindByID(tasksDir string, id int) (string, error) {
 			continue
 		}
 		prefix := strings.TrimLeft(name[:dash], "0")
-		if prefix == idStr {
-			return filepath.Join(tasksDir, name), nil
+		if prefix != idStr {
+			continue
+		}
+
+		path := filepath.Join(tasksDir, name)
+		t, readErr := Read(path)
+		if readErr != nil {
+			if prefixFallback == "" {
+				prefixFallback = path
+			}
+			continue
+		}
+		if t.ID == id {
+			return path, prefixFallback
 		}
 	}
+	return "", prefixFallback
+}
 
-	return "", clierr.Newf(clierr.TaskNotFound, "task not found: #%d", id).
-		WithDetails(map[string]any{"id": id})
+func findByFrontmatterID(entries []os.DirEntry, tasksDir string, id int) string {
+	for _, entry := range entries {
+		if !isTaskMarkdown(entry) {
+			continue
+		}
+		path := filepath.Join(tasksDir, entry.Name())
+		t, readErr := Read(path)
+		if readErr != nil {
+			continue
+		}
+		if t.ID == id {
+			return path
+		}
+	}
+	return ""
+}
+
+func isTaskMarkdown(entry os.DirEntry) bool {
+	return !entry.IsDir() && strings.HasSuffix(entry.Name(), taskFileExt)
 }
 
 // ReadAll reads all task files from the given directory.
@@ -55,7 +107,7 @@ func ReadAll(tasksDir string) ([]*Task, error) {
 
 	var tasks []*Task
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != taskFileExt {
 			continue
 		}
 
@@ -90,7 +142,7 @@ func ReadAllLenient(tasksDir string) ([]*Task, []ReadWarning, error) {
 	var tasks []*Task
 	var warnings []ReadWarning
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != taskFileExt {
 			continue
 		}
 

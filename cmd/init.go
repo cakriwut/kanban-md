@@ -108,6 +108,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	output.Messagef(os.Stdout, "  Tasks:   %s", tasksDir)
 	output.Messagef(os.Stdout, "  Columns: %s", strings.Join(cfg.StatusNames(), ", "))
 	output.Messagef(os.Stdout, "  Hint:    Install agent skills with: kanban-md skill install")
+
+	if err := offerAddKanbanToGitignore(absDir); err != nil {
+		return fmt.Errorf("updating .gitignore: %w", err)
+	}
+
 	return nil
 }
 

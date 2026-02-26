@@ -225,3 +225,86 @@ func TestRunInit_JSONOutput(t *testing.T) {
 		t.Errorf("expected JSON with status:initialized, got: %s", got)
 	}
 }
+
+func TestRunInit_AppendsToExistingGitignore(t *testing.T) {
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+	gitignorePath := filepath.Join(dir, ".gitignore")
+	oldContent := "tmp/\n"
+	if err := os.WriteFile(gitignorePath, []byte(oldContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("\n"))
+	_ = w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	oldFlagDir := flagDir
+	flagDir = kanbanDir
+	t.Cleanup(func() { flagDir = oldFlagDir })
+
+	setFlags(t, false, true, false)
+	rOut, wOut := captureStdout(t)
+
+	cmd := newInitCmd()
+	err = runInit(cmd, nil)
+	_ = drainPipe(t, rOut, wOut)
+
+	if err != nil {
+		t.Fatalf("runInit error: %v", err)
+	}
+
+	// #nosec G304 -- this test uses a fixture path created from t.TempDir.
+	got, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if !containsSubstring(string(got), oldContent) {
+		t.Fatalf("expected .gitignore to keep existing entries, got: %s", string(got))
+	}
+	if !containsSubstring(string(got), "kanban/\n") {
+		t.Fatalf("expected kanban/ to be added to .gitignore, got: %s", string(got))
+	}
+}
+
+func TestRunInit_SkipsGitignoreIfNo(t *testing.T) {
+	dir := t.TempDir()
+	kanbanDir := filepath.Join(dir, "kanban")
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("n\n"))
+	_ = w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	oldFlagDir := flagDir
+	flagDir = kanbanDir
+	t.Cleanup(func() { flagDir = oldFlagDir })
+
+	setFlags(t, false, true, false)
+	rOut, wOut := captureStdout(t)
+
+	cmd := newInitCmd()
+	err = runInit(cmd, nil)
+	_ = drainPipe(t, rOut, wOut)
+
+	if err != nil {
+		t.Fatalf("runInit error: %v", err)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(dir, ".gitignore")); statErr == nil {
+		t.Fatal("expected no .gitignore update when user declines")
+	}
+}

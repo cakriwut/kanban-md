@@ -112,6 +112,67 @@ func TestOfferInitTUI_AcceptY(t *testing.T) {
 	}
 }
 
+func TestOfferInitTUI_AddsKanbanToGitignore(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("\n"))
+	_ = w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	rOut, wOut := captureStdout(t)
+
+	_, initErr := offerInitTUI()
+
+	_ = drainPipe(t, rOut, wOut)
+
+	if initErr != nil {
+		t.Fatalf("offerInitTUI() error: %v", initErr)
+	}
+
+	gitignorePath := filepath.Join(dir, ".gitignore")
+	// #nosec G304 -- this test uses a fixture path created from t.TempDir.
+	got, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if !containsSubstring(string(got), "kanban/") {
+		t.Errorf("expected kanban/ in .gitignore, got: %s", string(got))
+	}
+}
+
+func TestOfferInitTUI_SkipsGitignoreIfNo(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("n\n"))
+	_ = w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	_, initErr := offerInitTUI()
+	if initErr == nil {
+		t.Fatal("expected error for board creation decline")
+	}
+
+	if _, statErr := os.Stat(filepath.Join(dir, ".gitignore")); !os.IsNotExist(statErr) {
+		t.Fatal("expected no .gitignore update when user declines")
+	}
+}
+
 func TestOfferInitTUI_AcceptYes(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

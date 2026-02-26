@@ -28,6 +28,9 @@ func Read(path string) (*Task, error) {
 	if err := yaml.Unmarshal(fm, &t); err != nil {
 		return nil, fmt.Errorf("parsing frontmatter in %s: %w", path, err)
 	}
+	if err := validateRequiredFields(&t); err != nil {
+		return nil, fmt.Errorf("parsing frontmatter in %s: %w", path, err)
+	}
 
 	t.Body = body
 	t.File = path
@@ -87,4 +90,17 @@ func splitFrontmatter(data []byte) ([]byte, string, error) {
 	}
 
 	return []byte(fm), body, nil
+}
+
+func validateRequiredFields(t *Task) error {
+	if t.ID < 1 {
+		return errors.New("missing required field: id")
+	}
+	if strings.TrimSpace(t.Title) == "" {
+		return errors.New("missing required field: title")
+	}
+	if strings.TrimSpace(t.Status) == "" {
+		return errors.New("missing required field: status")
+	}
+	return nil
 }

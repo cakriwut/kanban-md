@@ -62,6 +62,7 @@ Project management tools are designed for humans clicking buttons. kanban-md is 
 
 - **Agents-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
 - **Multi-agent safe.** Claims provide cooperative locking so multiple agents can work the same board without stepping on each other. Claims expire automatically, and the `pick` command atomically finds, claims, and moves the next available task.
+- **Self-healing task IDs.** Commands automatically detect duplicate IDs, filename/frontmatter ID mismatches, and `next_id` drift, then repair them before proceeding.
 - **Plain files.** Every task is a Markdown file. Agents, humans, scripts, and `grep` all work equally well. No API tokens, no authentication, no rate limits.
 - **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
 - **Skills included.** Pre-written skills for using the CLI tool and a multi-agent development workflow. Installable via `kanban-md skill install`.
@@ -213,6 +214,11 @@ kanban-md init [--name NAME] [--statuses s1,s2,s3] [--wip-limit status:N]
 | `--name` | Board name (defaults to parent directory name) |
 | `--statuses` | Comma-separated status list (default: backlog,todo,in-progress,review,done,archived) |
 | `--wip-limit` | WIP limit per status (format: `status:N`, repeatable) |
+
+After creating a board, kanban-md prompts to add the board directory (for example, `kanban/`) to `.gitignore`:
+
+- If `.gitignore` exists in the board directory parent, the entry is appended.
+- If `.gitignore` does not exist, it is created with the board directory entry.
 
 ### `create`
 
@@ -395,7 +401,8 @@ Atomically find and claim the next available task. Designed for multi-agent work
 ```bash
 kanban-md pick --claim agent-1
 kanban-md pick --claim agent-1 --status todo --move in-progress
-kanban-md pick --claim agent-1 --tag backend
+kanban-md pick --claim agent-1 --tags backend
+kanban-md pick --claim agent-1 --no-body
 ```
 
 | Flag | Default | Description |
@@ -403,7 +410,10 @@ kanban-md pick --claim agent-1 --tag backend
 | `--claim` | (required) | Agent name to claim the task for |
 | `--status` | all non-terminal | Source status(es) to pick from (comma-separated) |
 | `--move` | | Also move picked task to this status |
-| `--tag` | | Only pick tasks with this tag |
+| `--tags` | | Only pick tasks matching at least one tag |
+| `--no-body` | false | Show only the pick confirmation line (skip full task details) |
+
+By default, `pick` prints the one-line confirmation and then the full task details (same as `show`, including body) so agents do not need a follow-up `show` command.
 
 The pick algorithm selects from unclaimed, unblocked tasks with satisfied dependencies, prioritizing by class of service (expedite > fixed-date > standard > intangible), then by priority within each class. Fixed-date tasks are further sorted by earliest due date.
 
@@ -500,6 +510,7 @@ When using `--write-to`, the context block is wrapped in HTML comment markers (`
 ## Interactive TUI
 
 `kanban-md tui` opens a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
+If no board exists in the current directory, `kanban-md tui` can initialize one and then offers to add that board directory to `.gitignore`.
 
 ```bash
 kanban-md tui             # launch from any directory with a kanban/ board
@@ -662,7 +673,7 @@ kanban-md edit 5 --release
 kanban-md move 5 done
 
 # Another agent picks from a specific queue
-kanban-md pick --claim agent-2 --status todo --tag backend
+kanban-md pick --claim agent-2 --status todo --tags backend
 ```
 
 ### Classes of service

@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,6 +58,24 @@ func TestCreate_BackspaceDeletesCharacter(t *testing.T) {
 	// Should show "A" not "AB".
 	if containsStr(v, "AB") {
 		t.Error("backspace should have deleted the last character")
+	}
+}
+
+func TestCreate_BackspaceAliasDeletesCharacter(t *testing.T) {
+	b, _ := setupTestBoard(t)
+
+	b = sendKey(b, "c")
+	// Type "AB" then simulate a terminal backspace key as ctrl+h.
+	for _, ch := range "AB" {
+		m, _ := b.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		b = m.(*tui.Board)
+	}
+	b = sendSpecialKey(b, tea.KeyCtrlH)
+
+	v := b.View()
+	// Should show "A" not "AB".
+	if containsStr(v, "AB") {
+		t.Error("backspace alias should have deleted the last character")
 	}
 }
 
@@ -243,22 +262,49 @@ func TestCreate_SpaceInTitle(t *testing.T) {
 	b, _ := setupTestBoard(t)
 
 	b = sendKey(b, "c")
-
-	// Type with explicit space key.
-	for _, ch := range "hello" {
-		m, _ := b.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
-		b = m.(*tui.Board)
-	}
-	m, _ := b.Update(tea.KeyMsg{Type: tea.KeySpace})
-	b = m.(*tui.Board)
-	for _, ch := range "world" {
-		m, _ = b.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
-		b = m.(*tui.Board)
-	}
+	b = typeText(b, "hello world")
 
 	v := b.View()
 	if !containsStr(v, "hello world") {
 		t.Error("expected 'hello world' in dialog")
+	}
+}
+
+func TestCreate_TitleInputWraps(t *testing.T) {
+	b, _ := setupTestBoard(t)
+	b = sendKey(b, "c")
+	b = typeText(b, "This title keeps typing forever")
+
+	if !containsStr(b.View(), "This title keeps typing forever") {
+		t.Error("expected typed title in dialog")
+	}
+}
+
+func TestCreate_BodyInputWraps(t *testing.T) {
+	b, cfg := setupTestBoard(t)
+	b = sendKey(b, "c")
+	b = typeText(b, "Body wrap test")
+	b = sendSpecialKey(b, tea.KeyTab)
+	b = typeText(b, "Body text should display across a narrow textarea")
+
+	_, _ = b.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	tasks, err := task.ReadAll(cfg.TasksPath())
+	if err != nil {
+		t.Fatalf("reading tasks: %v", err)
+	}
+	var createdTask *task.Task
+	for _, tk := range tasks {
+		if tk.Title == "Body wrap test" {
+			createdTask = tk
+			break
+		}
+	}
+	if createdTask == nil {
+		t.Fatalf("expected task with title %q to be created", "Body wrap test")
+	}
+	if !strings.Contains(createdTask.Body, "Body text should display across a narrow textarea") {
+		t.Error("expected typed body text in created task")
 	}
 }
 
