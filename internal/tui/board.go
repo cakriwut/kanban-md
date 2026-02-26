@@ -372,8 +372,17 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return b, nil
 	}
 
-	// Enter always submits the wizard (from any step).
-	if msg.Type == tea.KeyEnter {
+	// Ctrl+Enter submits the wizard from any step.
+	if msg.String() == "ctrl+enter" || msg.String() == "ctrl+j" || msg.String() == "ctrl+m" {
+		if b.createIsEdit {
+			return b.executeEdit()
+		}
+		return b.executeCreate()
+	}
+
+	// Enter without Ctrl submits from single-line fields (title, tags, priority)
+	// but allows newlines in the body field (textarea).
+	if msg.Type == tea.KeyEnter && b.createStep != stepBody {
 		if b.createIsEdit {
 			return b.executeEdit()
 		}
@@ -1784,7 +1793,7 @@ func (b *Board) createHint() string {
 	case stepTitle:
 		return fmt.Sprintf("tab:next  enter:%s  esc:cancel", action)
 	case stepBody:
-		return fmt.Sprintf("tab:next  shift+tab:back  enter:%s  esc:cancel", action)
+		return fmt.Sprintf("enter:newline  tab:next  shift+tab:back  ctrl+enter:%s  esc:cancel", action)
 	case stepPriority:
 		return fmt.Sprintf("↑/↓:select  tab:next  shift+tab:back  enter:%s  esc:cancel", action)
 	case stepTags:

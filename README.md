@@ -523,7 +523,7 @@ Set `tui.hide_empty_columns` in `config.yml` to control the default behavior.
 
 > **Note:** Older releases shipped a standalone `kanban-md-tui` binary. It has been retired — use `kanban-md tui` instead.
 
-In create/edit dialogs, text fields support cursor-based editing (`←/→`, `Home/End`, `Backspace`, `Delete`). The body field supports multiline input: press `Alt+Enter` to insert a newline, use `↑/↓` to navigate between lines, and `Backspace` at the start of a line to join it with the previous line.
+In create/edit dialogs, text fields support cursor-based editing (`←/→`, `Home/End`, `Backspace`, `Delete`). The body field supports multiline input: press `Enter` to insert a newline, use `↑/↓` to navigate between lines. Press `Ctrl+Enter` (or `Ctrl+J` / `Ctrl+M`) to submit the form from any field. On single-line fields (title, tags, priority), plain `Enter` also submits.
 
 ### Keyboard shortcuts
 

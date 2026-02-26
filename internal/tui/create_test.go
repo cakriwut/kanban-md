@@ -247,7 +247,7 @@ func TestCreate_NextIDIncrements(t *testing.T) {
 	// Create a task using Enter to finish immediately from title.
 	b = sendKey(b, "c")
 	b = typeText(b, "Increment test")
-	_ = sendSpecialKey(b, tea.KeyEnter)
+	b = sendSpecialKey(b, tea.KeyEnter)
 	// Reload config and check NextID incremented correctly.
 	reloaded, err := config.Load(cfg.Dir())
 	if err != nil {
@@ -287,7 +287,7 @@ func TestCreate_BodyInputWraps(t *testing.T) {
 	b = sendSpecialKey(b, tea.KeyTab)
 	b = typeText(b, "Body text should display across a narrow textarea")
 
-	_, _ = b.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	b = sendKey(b, "ctrl+enter") // submit with Ctrl+Enter
 
 	tasks, err := task.ReadAll(cfg.TasksPath())
 	if err != nil {
@@ -440,11 +440,11 @@ func TestCreate_EnterCreatesFromBodyStep(t *testing.T) {
 	b = typeText(b, "Quick create")
 	b = sendSpecialKey(b, tea.KeyTab) // → body
 	b = typeText(b, "Some body")
-	b = sendSpecialKey(b, tea.KeyEnter) // create from body step
+	b = sendKey(b, "ctrl+enter") // create from body step with Ctrl+Enter
 
 	v := b.View()
 	if !containsStr(v, "Quick create") {
-		t.Error("expected task in board after enter from body step")
+		t.Error("expected task in board after ctrl+enter from body step")
 	}
 
 	// Verify body was saved.
@@ -641,11 +641,11 @@ func TestCreate_AltEnterInsertsNewlineInBody(t *testing.T) {
 	b = typeText(b, "Multiline test")
 	b = sendSpecialKey(b, tea.KeyTab) // → body
 
-	// Type first line, alt+enter for newline, type second line.
+	// Type first line, Enter for newline, type second line.
 	b = typeText(b, "line one")
-	b = sendAltEnter(b)
+	b = sendSpecialKey(b, tea.KeyEnter) // insert newline in body
 	b = typeText(b, "line two")
-	b = sendSpecialKey(b, tea.KeyEnter) // submit
+	b = sendKey(b, "ctrl+enter") // submit with Ctrl+Enter
 
 	// Find and read the created task.
 	entries, err := os.ReadDir(cfg.TasksPath())
@@ -682,7 +682,7 @@ func TestCreate_BodyUpDownNavigation(t *testing.T) {
 
 	// Type two lines.
 	b = typeText(b, "AAA")
-	b = sendAltEnter(b)
+	b = sendSpecialKey(b, tea.KeyEnter) // insert newline
 	b = typeText(b, "BBB")
 
 	// Navigate up to first line.
@@ -691,7 +691,7 @@ func TestCreate_BodyUpDownNavigation(t *testing.T) {
 
 	// Type on first line — should modify first line.
 	b = typeText(b, "X")
-	b = sendSpecialKey(b, tea.KeyEnter) // submit
+	b = sendKey(b, "ctrl+enter") // submit with Ctrl+Enter
 
 	// Read task and verify first line was modified.
 	entries, err := os.ReadDir(cfg.TasksPath())
@@ -727,14 +727,14 @@ func TestCreate_BodyBackspaceJoinsLines(t *testing.T) {
 
 	// Type two lines.
 	b = typeText(b, "AB")
-	b = sendAltEnter(b)
+	b = sendSpecialKey(b, tea.KeyEnter) // insert newline
 	b = typeText(b, "CD")
 
 	// Move to start of second line and backspace to join.
 	m, _ := b.Update(tea.KeyMsg{Type: tea.KeyHome})
 	b = m.(*tui.Board)
 	b = sendSpecialKey(b, tea.KeyBackspace)
-	b = sendSpecialKey(b, tea.KeyEnter) // submit
+	b = sendKey(b, "ctrl+enter") // submit with Ctrl+Enter
 
 	// Read task — should be single line "ABCD".
 	entries, err := os.ReadDir(cfg.TasksPath())
@@ -784,8 +784,11 @@ func TestCreate_BodyHintShowsAltEnter(t *testing.T) {
 	b = sendSpecialKey(b, tea.KeyTab) // → body
 
 	v := b.View()
-	if !containsStr(v, "alt+enter:newline") {
-		t.Error("expected 'alt+enter:newline' hint on body step")
+	if !containsStr(v, "enter:newline") {
+		t.Error("expected 'enter:newline' hint on body step")
+	}
+	if !containsStr(v, "ctrl+enter:create") {
+		t.Error("expected 'ctrl+enter:create' hint on body step")
 	}
 }
 
